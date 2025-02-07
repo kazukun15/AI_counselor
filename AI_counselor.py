@@ -193,7 +193,7 @@ answer_container = st.empty()
 # --- 下部：ユーザー入力エリア ---
 st.header("メッセージ入力")
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_area("新たな発言を入力してください", placeholder="ここに入力", height=100, key="user_input")
+    user_input = st.text_area("新たな発言を入力してください。※入力した内容などのログは残りません。", placeholder="ここに入力", height=100, key="user_input")
     submit_button = st.form_submit_button("送信")
 
 if submit_button:

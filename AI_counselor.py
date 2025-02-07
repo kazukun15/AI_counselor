@@ -16,7 +16,8 @@ user_name = st.text_input("あなたの名前を入力してください", value
 # ------------------------
 # 定数／設定
 # ------------------------
-# APIキーは .streamlit/secrets.toml に記述してください（例: [general] api_key = "YOUR_GEMINI_API_KEY"）
+# APIキーは .streamlit/secrets.toml に記述してください
+# 例: [general] api_key = "YOUR_GEMINI_API_KEY"
 API_KEY = st.secrets["general"]["api_key"]
 MODEL_NAME = "gemini-2.0-flash-001"  # 必要に応じて変更
 ROLES = ["精神科医師", "カウンセラー", "メンタリスト", "内科医"]
@@ -135,10 +136,10 @@ def display_line_style(text: str):
     """
     lines = text.split("\n")
     color_map = {
-        "精神科医師": {"bg": "#E6E6FA", "color": "#000"},
-        "カウンセラー": {"bg": "#FFB6C1", "color": "#000"},
-        "メンタリスト": {"bg": "#AFEEEE", "color": "#000"},
-        "内科医": {"bg": "#98FB98", "color": "#000"}
+        "精神科医師": {"bg": "#E6E6FA", "color": "#000"},  # 薄いラベンダー
+        "カウンセラー": {"bg": "#FFB6C1", "color": "#000"},   # 薄いピンク
+        "メンタリスト": {"bg": "#AFEEEE", "color": "#000"},   # 薄いターコイズ
+        "内科医": {"bg": "#98FB98", "color": "#000"}          # 薄いグリーン
     }
     for line in lines:
         line = line.strip()
@@ -188,7 +189,6 @@ with st.form("chat_form", clear_on_submit=True):
 
 if submit_button:
     if user_input.strip():
-        # combined_answer をリストとして初期化（存在しない場合）
         if "combined_answer" not in st.session_state or not isinstance(st.session_state["combined_answer"], list):
             st.session_state["combined_answer"] = []
         if not st.session_state["combined_answer"]:
@@ -199,7 +199,8 @@ if submit_button:
             new_answer = continue_combined_answer(user_input, "\n".join(st.session_state["combined_answer"]))
             st.session_state["combined_answer"].append(new_answer)
         answer_container.markdown("### 統合回答")
-        for answer in st.session_state["combined_answer"]:
+        # 最新の回答が上に来るように逆順で表示
+        for answer in reversed(st.session_state["combined_answer"]):
             display_combined_answer(answer)
     else:
         st.warning("発言を入力してください。")

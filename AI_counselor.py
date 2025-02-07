@@ -16,8 +16,7 @@ user_name = st.text_input("あなたの名前を入力してください", value
 # ------------------------
 # 定数／設定
 # ------------------------
-# APIキーは .streamlit/secrets.toml に記述してください
-# 例: [general] api_key = "YOUR_GEMINI_API_KEY"
+# APIキーは .streamlit/secrets.toml に記述してください（例: [general] api_key = "YOUR_GEMINI_API_KEY"）
 API_KEY = st.secrets["general"]["api_key"]
 MODEL_NAME = "gemini-2.0-flash-001"  # 必要に応じて変更
 ROLES = ["精神科医師", "カウンセラー", "メンタリスト", "内科医"]
@@ -113,9 +112,6 @@ def generate_summary(discussion: str) -> str:
     return call_gemini_api(prompt)
 
 def display_combined_answer(text: str):
-    """
-    生成された統合回答を、一つの吹き出しとして表示します。
-    """
     bubble_html = f"""
     <div style="
         background-color: #FFFACD !important;
@@ -132,11 +128,53 @@ def display_combined_answer(text: str):
     """
     st.markdown(bubble_html, unsafe_allow_html=True)
 
+def display_line_style(text: str):
+    """
+    会話の各行を順番通りに縦に表示します。
+    各吹き出しは、各役割ごとに指定された背景色、文字色、フォントで表示されます。
+    """
+    lines = text.split("\n")
+    color_map = {
+        "精神科医師": {"bg": "#E6E6FA", "color": "#000"},
+        "カウンセラー": {"bg": "#FFB6C1", "color": "#000"},
+        "メンタリスト": {"bg": "#AFEEEE", "color": "#000"},
+        "内科医": {"bg": "#98FB98", "color": "#000"}
+    }
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        matched = re.match(r"^(精神科医師|カウンセラー|メンタリスト|内科医):\s*(.*)$", line)
+        if matched:
+            role = matched.group(1)
+            message = matched.group(2)
+        else:
+            role = ""
+            message = line
+        styles = color_map.get(role, {"bg": "#F5F5F5", "color": "#000"})
+        bg_color = styles["bg"]
+        text_color = styles["color"]
+        bubble_html = f"""
+        <div style="
+            background-color: {bg_color} !important;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 8px;
+            margin: 5px 0;
+            color: {text_color} !important;
+            font-family: Arial, sans-serif !important;
+        ">
+            <strong>{role}</strong><br>
+            {message}
+        </div>
+        """
+        st.markdown(bubble_html, unsafe_allow_html=True)
+
 # ------------------------
 # Streamlit アプリ本体
 # ------------------------
 
-st.title("職員メンタルケアラー")
+st.title("役場メンタルケア - 会話サポート")
 
 # --- 上部：統合回答表示エリア ---
 st.header("回答")
@@ -150,8 +188,8 @@ with st.form("chat_form", clear_on_submit=True):
 
 if submit_button:
     if user_input.strip():
-        # 初回はリストを初期化、以降は追加入力をリレーとして追加
-        if "combined_answer" not in st.session_state:
+        # combined_answer をリストとして初期化（存在しない場合）
+        if "combined_answer" not in st.session_state or not isinstance(st.session_state["combined_answer"], list):
             st.session_state["combined_answer"] = []
         if not st.session_state["combined_answer"]:
             persona_params = adjust_parameters(user_input)

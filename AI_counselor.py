@@ -175,7 +175,7 @@ def display_line_style(text: str):
 # Streamlit アプリ本体
 # ------------------------
 
-st.title("役場メンタルケア - 会話サポート")
+st.title("職員メンタルケアラー")
 
 # --- 上部：統合回答表示エリア ---
 st.header("回答")

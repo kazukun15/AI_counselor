@@ -179,6 +179,15 @@ st.title("職員メンタルケアラー")
 
 # --- 上部：統合回答表示エリア ---
 st.header("回答")
+# 会話をまとめるボタンを上部に配置
+if st.button("会話をまとめる"):
+    if st.session_state.get("combined_answer", []):
+        summary = generate_summary("\n".join(st.session_state["combined_answer"]))
+        st.session_state["summary"] = summary
+        st.markdown("### まとめ回答\n" + "**まとめ:** " + summary)
+    else:
+        st.warning("まずは会話を開始してください。")
+
 answer_container = st.empty()
 
 # --- 下部：ユーザー入力エリア ---
@@ -204,12 +213,3 @@ if submit_button:
             display_combined_answer(answer)
     else:
         st.warning("発言を入力してください。")
-
-st.header("まとめ回答")
-if st.button("会話をまとめる"):
-    if st.session_state.get("combined_answer", []):
-        summary = generate_summary("\n".join(st.session_state["combined_answer"]))
-        st.session_state["summary"] = summary
-        st.markdown("### まとめ回答\n" + "**まとめ:** " + summary)
-    else:
-        st.warning("まずは会話を開始してください。")

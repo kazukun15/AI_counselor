@@ -16,11 +16,9 @@ user_name = st.text_input("あなたの名前を入力してください", value
 # ------------------------
 # 定数／設定
 # ------------------------
-# APIキーは .streamlit/secrets.toml に設定してください
-# 例: [general] api_key = "YOUR_GEMINI_API_KEY"
+# APIキーは .streamlit/secrets.toml に記述してください（例: [general] api_key = "YOUR_GEMINI_API_KEY"）
 API_KEY = st.secrets["general"]["api_key"]
 MODEL_NAME = "gemini-2.0-flash-001"  # 必要に応じて変更
-# 4人の専門家の役割
 ROLES = ["精神科医師", "カウンセラー", "メンタリスト", "内科医"]
 
 # ------------------------
@@ -28,7 +26,6 @@ ROLES = ["精神科医師", "カウンセラー", "メンタリスト", "内科�
 # ------------------------
 
 def analyze_question(question: str) -> int:
-    # （今回は固定パラメータを使用するため、scoreは利用しません）
     score = 0
     keywords_emotional = ["困った", "悩み", "苦しい", "辛い"]
     keywords_logical = ["理由", "原因", "仕組み", "方法"]
@@ -87,37 +84,35 @@ def call_gemini_api(prompt: str) -> str:
 
 def generate_combined_answer(question: str, persona_params: dict) -> str:
     current_user = st.session_state.get("user_name", "ユーザー")
+    # まずは寄り添い、相手の話を広げる会話を促しつつ、必要に応じて診断を行う
     prompt = f"【{current_user}さんの質問】\n{question}\n\n"
     prompt += "以下は、4人の専門家の視点です：\n"
     for role, params in persona_params.items():
         prompt += f"{role}は【{params['style']}な視点】で、{params['detail']}。\n"
     prompt += (
-        "\n上記の情報を統合し、4人の専門家の意見を踏まえた、シンプルで分かりやすい一人の回答を生成してください。\n"
+        "\n上記の意見を踏まえ、まずはユーザーの心に寄り添い、話を広げながら十分な情報を集める会話を行い、その後、必要な診断を行うようなシンプルで分かりやすい回答を生成してください。\n"
         "回答は自然な日本語で出力してください。"
     )
     return call_gemini_api(prompt)
 
 def continue_combined_answer(additional_input: str, current_discussion: str) -> str:
     prompt = (
-        "これまでの会話:\n" + current_discussion + "\n\n" +
+        "これまでの会話の流れ:\n" + current_discussion + "\n\n" +
         "ユーザーの追加発言: " + additional_input + "\n\n" +
-        "上記の流れを踏まえ、4人の専門家の意見を統合し、シンプルで分かりやすい一人の回答を生成してください。\n"
+        "上記の流れを踏まえ、まずは相手の心に寄り添い、話を広げる会話を続け、必要に応じて最終的な診断を行うシンプルな回答を生成してください。\n"
         "回答は自然な日本語で出力してください。"
     )
     return call_gemini_api(prompt)
 
 def generate_summary(discussion: str) -> str:
     prompt = (
-        "以下は4人の会話内容です。\n" + discussion + "\n\n" +
-        "この会話を踏まえて、役場職員のメンタルヘルスケアに関するまとめ回答を生成してください。\n"
+        "以下は4人の統合された会話内容です:\n" + discussion + "\n\n" +
+        "この内容を踏まえて、役場職員のメンタルヘルスケアに関するまとめ回答を生成してください。\n"
         "自然な日本語文で出力し、余計なJSON形式は不要です。"
     )
     return call_gemini_api(prompt)
 
 def display_combined_answer(text: str):
-    """
-    生成された統合回答を、ひとつの吹き出しとして表示します。
-    """
     bubble_html = f"""
     <div style="
         background-color: #FFFACD !important;
@@ -138,11 +133,11 @@ def display_combined_answer(text: str):
 # Streamlit アプリ本体
 # ------------------------
 
-st.title("メンタルケアラー ")
+st.title("職員メンタルケアラー ")
 
-# --- 上部：会話履歴表示エリア ---
-st.header("会話履歴")
-discussion_container = st.empty()
+# --- 上部：統合回答表示エリア ---
+st.header("回答")
+answer_container = st.empty()
 
 # --- 下部：ユーザー入力エリア ---
 st.header("メッセージ入力")
@@ -152,22 +147,22 @@ with st.form("chat_form", clear_on_submit=True):
 
 if submit_button:
     if user_input.strip():
-        if "discussion" not in st.session_state or not st.session_state["discussion"]:
+        if "combined_answer" not in st.session_state or not st.session_state["combined_answer"]:
             persona_params = adjust_parameters(user_input)
             combined_answer = generate_combined_answer(user_input, persona_params)
-            st.session_state["discussion"] = combined_answer
+            st.session_state["combined_answer"] = combined_answer
         else:
-            new_answer = continue_combined_answer(user_input, st.session_state["discussion"])
-            st.session_state["discussion"] += "\n" + new_answer
-        discussion_container.markdown("### 統合回答")
-        display_combined_answer(st.session_state["discussion"])
+            new_answer = continue_combined_answer(user_input, st.session_state["combined_answer"])
+            st.session_state["combined_answer"] += "\n" + new_answer
+        answer_container.markdown("### 統合回答")
+        display_combined_answer(st.session_state["combined_answer"])
     else:
         st.warning("発言を入力してください。")
 
 st.header("まとめ回答")
 if st.button("会話をまとめる"):
-    if st.session_state.get("discussion", ""):
-        summary = generate_summary(st.session_state["discussion"])
+    if st.session_state.get("combined_answer", ""):
+        summary = generate_summary(st.session_state["combined_answer"])
         st.session_state["summary"] = summary
         st.markdown("### まとめ回答\n" + "**まとめ:** " + summary)
     else:

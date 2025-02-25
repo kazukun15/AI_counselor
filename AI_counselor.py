@@ -5,7 +5,7 @@ import re
 # ------------------------
 # ページ設定（最初に実行）
 # ------------------------
-st.set_page_config(page_title="役場メンタルケア - チャット", layout="wide")
+st.set_page_config(page_title="職員　ヘルスケアボット", layout="wide")
 
 # ------------------------
 # ユーザー情報入力（画面上部）
@@ -95,7 +95,9 @@ def generate_combined_answer(question: str, persona_params: dict) -> str:
         "以下は、4人の専門家の意見を内部で統合した結果です。"
         "ただし、内部の議論内容は伏せ、あなたに対する一対一の自然な会話として、"
         "たとえば「どうしたの？もう少し詳しく教えて」といった返答を含む回答を、"
-        "300～400文字程度で生成してください。"
+        "200～300文字程度で生成してください。"
+        "会話はわかりやすく、明瞭に生成してください。
+        "親しみやすい言葉をつかってください。 "
     )
     return truncate_text(call_gemini_api(prompt), 400)
 
@@ -105,7 +107,7 @@ def continue_combined_answer(additional_input: str, current_turns: str) -> str:
         "ユーザーの追加発言: " + additional_input + "\n\n" +
         "上記の流れを踏まえ、さらに自然な会話として、"
         "たとえば「それでどうなったの？」といった返答を含む回答を、"
-        "300～400文字程度で生成してください。"
+        "200～300文字程度で生成してください。"
     )
     return truncate_text(call_gemini_api(prompt), 400)
 

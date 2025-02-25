@@ -14,6 +14,11 @@ st.set_page_config(page_title="役場メンタルケア", layout="wide")
 user_name = st.text_input("あなたの名前を入力してください", value="役場職員", key="user_name")
 
 # ------------------------
+# 相談タイプ選択（本人の相談 vs 他者の相談）
+# ------------------------
+consult_type = st.radio("相談タイプを選択してください", ("本人の相談", "他者の相談"), key="consult_type")
+
+# ------------------------
 # 定数／設定
 # ------------------------
 # APIキーは .streamlit/secrets.toml に記述してください
@@ -85,12 +90,17 @@ def call_gemini_api(prompt: str) -> str:
 
 def generate_combined_answer(question: str, persona_params: dict) -> str:
     current_user = st.session_state.get("user_name", "ユーザー")
-    prompt = f"【{current_user}さんの質問】\n{question}\n\n"
+    # 相談タイプに応じた文言を追加
+    consult_info = "この相談は本人が抱える悩みに関するものです。" if st.session_state.get("consult_type", "本人の相談") == "本人の相談" else "この相談は、他者が抱える障害に関するものです。"
+    prompt = f"【{current_user}さんの質問】\n{question}\n\n{consult_info}\n"
     prompt += "以下は、4人の専門家の視点です：\n"
     for role, params in persona_params.items():
         prompt += f"{role}は【{params['style']}な視点】で、{params['detail']}。\n"
     prompt += (
-        "\n上記の意見を統合し、まずは相手の心に寄り添い、話を広げながら、必要に応じて最終診断を行うシンプルで分かりやすい回答を生成してください。\n"
+        "\n上記の意見を統合し、まずは相手の心に寄り添い、話を広げながら、"
+        "必要に応じて最終診断を行うシンプルで分かりやすい回答を生成してください。\n"
+        "また、回答に必要な知識が不足している場合は、信頼できる公的機関のサイトや学術論文を参照してください。"
+        "虚偽情報（ハルシネーション）は絶対に含めないでください。\n"
         "回答は自然な日本語で出力してください。"
     )
     return call_gemini_api(prompt)
@@ -99,7 +109,9 @@ def continue_combined_answer(additional_input: str, current_discussion: str) -> 
     prompt = (
         "これまでの会話の流れ:\n" + current_discussion + "\n\n" +
         "ユーザーの追加発言: " + additional_input + "\n\n" +
-        "上記の流れを踏まえ、さらに相手に寄り添い、話を広げながら、必要なら最終診断を行うシンプルな回答を生成してください。\n"
+        "上記の流れを踏まえ、さらに相手に寄り添い、話を広げながら、"
+        "必要なら最終診断を行うシンプルな回答を生成してください。\n"
+        "もし回答に不足があれば、信頼できる公的機関の情報や論文を参照し、虚偽情報は一切含めないでください。\n"
         "回答は自然な日本語で出力してください。"
     )
     return call_gemini_api(prompt)
@@ -131,7 +143,7 @@ def display_combined_answer(text: str):
 
 def display_line_style(text: str):
     """
-    会話の各行を順番通りに縦に表示します。
+    （参考用）会話の各行を順番通りに縦に表示します。
     各吹き出しは、各役割ごとに指定された背景色、文字色、フォントで表示されます。
     """
     lines = text.split("\n")
@@ -175,7 +187,7 @@ def display_line_style(text: str):
 # Streamlit アプリ本体
 # ------------------------
 
-st.title("職員メンタルケアラー")
+st.title("役場メンタルケア - 会話サポート")
 
 # --- 上部：統合回答表示エリア ---
 st.header("回答")
@@ -193,7 +205,7 @@ answer_container = st.empty()
 # --- 下部：ユーザー入力エリア ---
 st.header("メッセージ入力")
 with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_area("新たな発言を入力してください。※入力した内容などのログは残りません。", placeholder="ここに入力", height=100, key="user_input")
+    user_input = st.text_area("新たな発言を入力してください", placeholder="ここに入力", height=100, key="user_input")
     submit_button = st.form_submit_button("送信")
 
 if submit_button:

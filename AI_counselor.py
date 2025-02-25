@@ -86,7 +86,7 @@ def generate_combined_answer(question: str, persona_params: dict) -> str:
     consult_type = st.session_state.get("consult_type", "本人の相談")
     if consult_type == "デリケートな相談":
         # デリケートな相談の場合のプロンプト
-        consult_info = ("この相談は大人の発達障害（例：ADHDなど）を含む、デリケートな相談です。"
+        consult_info = ("この相談は大人の発達障害（例：ADHD、ASD、LDなど）を含む、デリケートな相談です。"
                         "信頼できる公的機関や学術論文を参照し、正確な情報に基づいた回答をお願いします。")
     elif consult_type == "他者の相談":
         consult_info = "この相談は、他者が抱える障害に関するものです。専門的な視点から客観的な判断をお願いします。"

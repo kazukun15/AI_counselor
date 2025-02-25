@@ -9,16 +9,14 @@ import random
 st.set_page_config(page_title="役場メンタルケア", layout="wide")
 
 # ------------------------
-# ユーザー情報入力（画面上部に表示）
+# ユーザー情報入力（画面上部）
 # ------------------------
 user_name = st.text_input("あなたの名前を入力してください", value="役場職員", key="user_name")
-consult_type = st.radio("相談タイプを選択してください", ("本人の相談", "他者の相談", "デリケートな相談"), key="consult_type")
+consult_type = st.radio("相談タイプを選択してください", ("本人の相談", "他者の相談", "発達障害相談"), key="consult_type")
 
 # ------------------------
 # 定数／設定
 # ------------------------
-# APIキーは .streamlit/secrets.toml に記述してください
-# 例: [general] api_key = "YOUR_GEMINI_API_KEY"
 API_KEY = st.secrets["general"]["api_key"]
 MODEL_NAME = "gemini-2.0-flash-001"  # 必要に応じて変更
 ROLES = ["精神科医師", "カウンセラー", "メンタリスト", "内科医"]
@@ -40,7 +38,6 @@ def analyze_question(question: str) -> int:
     return score
 
 def adjust_parameters(question: str) -> dict:
-    # 4人の専門家のパラメーターを固定設定
     params = {}
     params["精神科医師"] = {"style": "専門的", "detail": "精神科のナレッジを基に的確な判断を下す"}
     params["カウンセラー"] = {"style": "共感的", "detail": "寄り添いながら優しくサポートする"}
@@ -86,12 +83,12 @@ def call_gemini_api(prompt: str) -> str:
 
 def generate_combined_answer(question: str, persona_params: dict) -> str:
     current_user = st.session_state.get("user_name", "ユーザー")
-    # 相談タイプに応じた文言を追加
     consult_type = st.session_state.get("consult_type", "本人の相談")
-    if consult_type == "発達障害の相談":
-        consult_info = "この相談は大人の発達障害（例：ADHDなど）に関するものです。専門的かつ信頼できる公的情報や論文を参照し、虚偽情報は一切含めず、正確な回答をお願いします。"
+    if consult_type == "発達障害相談":
+        consult_info = ("この相談は大人の発達障害（例：ADHDなど）に関するものです。"
+                        "信頼できる公的機関や学術論文を参照し、正確な情報に基づいた回答をお願いします。")
     elif consult_type == "他者の相談":
-        consult_info = "この相談は、他者が抱える障害に関するものです。専門的な視点から、客観的な判断をお願いします。"
+        consult_info = "この相談は、他者が抱える障害に関するものです。専門的な視点から客観的な判断をお願いします。"
     else:
         consult_info = "この相談は本人が抱える悩みに関するものです。"
         
@@ -100,7 +97,8 @@ def generate_combined_answer(question: str, persona_params: dict) -> str:
     for role, params in persona_params.items():
         prompt += f"{role}は【{params['style']}な視点】で、{params['detail']}。\n"
     prompt += (
-        "\n上記の意見を統合し、まずは相手の心に寄り添い、話を広げながら、必要に応じて最終診断を行うシンプルで分かりやすい回答を生成してください。\n"
+        "\n上記の意見を統合し、まずは相手の心に寄り添いながら、"
+        "会話を広げ、十分な情報を得た上で、必要に応じて最終診断を行うシンプルで分かりやすい回答を生成してください。\n"
         "回答は自然な日本語で出力してください。"
     )
     return call_gemini_api(prompt)
@@ -109,7 +107,8 @@ def continue_combined_answer(additional_input: str, current_discussion: str) -> 
     prompt = (
         "これまでの会話の流れ:\n" + current_discussion + "\n\n" +
         "ユーザーの追加発言: " + additional_input + "\n\n" +
-        "上記の流れを踏まえ、さらに相手に寄り添い、話を広げながら、必要なら最終診断を行うシンプルな回答を生成してください。\n"
+        "上記の流れを踏まえ、さらに相手の心に寄り添い、話を広げながら、"
+        "必要なら最終診断を行うシンプルな回答を生成してください。\n"
         "回答は自然な日本語で出力してください。"
     )
     return call_gemini_api(prompt)
@@ -122,63 +121,42 @@ def generate_summary(discussion: str) -> str:
     )
     return call_gemini_api(prompt)
 
-def display_combined_answer(text: str):
-    bubble_html = f"""
-    <div style="
-        background-color: #FFFACD !important;
-        border: 1px solid #ddd;
-        border-radius: 10px;
-        padding: 8px;
-        margin: 5px 0;
-        color: #000 !important;
-        font-family: Arial, sans-serif !important;
-    ">
-        <strong>回答</strong><br>
-        {text}
-    </div>
+def display_conversation_history(history: list):
     """
-    st.markdown(bubble_html, unsafe_allow_html=True)
-
-def display_line_style(text: str):
+    会話履歴（交互の発言）を上から下に順番通りに表示します。
+    ユーザー発言は青系、回答は薄い黄色で表示します。
     """
-    （参考用）会話の各行を順番通りに縦に表示します。
-    各吹き出しは、各役割ごとに指定された背景色、文字色、フォントで表示されます。
-    """
-    lines = text.split("\n")
-    color_map = {
-        "精神科医師": {"bg": "#E6E6FA", "color": "#000"},  # 薄いラベンダー
-        "カウンセラー": {"bg": "#FFB6C1", "color": "#000"},   # 薄いピンク
-        "メンタリスト": {"bg": "#AFEEEE", "color": "#000"},   # 薄いターコイズ
-        "内科医": {"bg": "#98FB98", "color": "#000"}          # 薄いグリーン
-    }
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        matched = re.match(r"^(精神科医師|カウンセラー|メンタリスト|内科医):\s*(.*)$", line)
-        if matched:
-            role = matched.group(1)
-            message = matched.group(2)
-        else:
-            role = ""
-            message = line
-        styles = color_map.get(role, {"bg": "#F5F5F5", "color": "#000"})
-        bg_color = styles["bg"]
-        text_color = styles["color"]
-        bubble_html = f"""
-        <div style="
-            background-color: {bg_color} !important;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            padding: 8px;
-            margin: 5px 0;
-            color: {text_color} !important;
-            font-family: Arial, sans-serif !important;
-        ">
-            <strong>{role}</strong><br>
-            {message}
-        </div>
-        """
+    for item in history:
+        if item["sender"] == "あなた":
+            bubble_html = f"""
+            <div style="
+                background-color: #DCF8C6 !important;
+                border: 1px solid #ddd;
+                border-radius: 10px;
+                padding: 8px;
+                margin: 5px 0;
+                color: #000 !important;
+                font-family: Arial, sans-serif !important;
+            ">
+                <strong>あなた</strong><br>
+                {item["message"]}
+            </div>
+            """
+        elif item["sender"] == "回答":
+            bubble_html = f"""
+            <div style="
+                background-color: #FFFACD !important;
+                border: 1px solid #ddd;
+                border-radius: 10px;
+                padding: 8px;
+                margin: 5px 0;
+                color: #000 !important;
+                font-family: Arial, sans-serif !important;
+            ">
+                <strong>回答</strong><br>
+                {item["message"]}
+            </div>
+            """
         st.markdown(bubble_html, unsafe_allow_html=True)
 
 # ------------------------
@@ -187,17 +165,18 @@ def display_line_style(text: str):
 
 st.title("役場メンタルケア - 会話サポート")
 
-# --- 上部：統合回答表示エリア ---
-st.header("回答")
+# --- 上部：統合回答表示エリア（会話履歴） ---
+st.header("会話履歴")
+conversation_container = st.empty()
+
+# --- 上部：まとめ回答ボタン ---
 if st.button("会話をまとめる"):
-    if st.session_state.get("combined_answer", []):
-        summary = generate_summary("\n".join(st.session_state["combined_answer"]))
+    if st.session_state.get("conversation_history", []):
+        summary = generate_summary("\n".join([f"{item['sender']}: {item['message']}" for item in st.session_state["conversation_history"]]))
         st.session_state["summary"] = summary
         st.markdown("### まとめ回答\n" + "**まとめ:** " + summary)
     else:
         st.warning("まずは会話を開始してください。")
-
-answer_container = st.empty()
 
 # --- 下部：ユーザー入力エリア ---
 st.header("メッセージ入力")
@@ -207,18 +186,20 @@ with st.form("chat_form", clear_on_submit=True):
 
 if submit_button:
     if user_input.strip():
-        if "combined_answer" not in st.session_state or not isinstance(st.session_state["combined_answer"], list):
-            st.session_state["combined_answer"] = []
-        if not st.session_state["combined_answer"]:
-            persona_params = adjust_parameters(user_input)
+        # conversation_history をリストとして初期化
+        if "conversation_history" not in st.session_state or not isinstance(st.session_state["conversation_history"], list):
+            st.session_state["conversation_history"] = []
+        # ユーザー発言を追加
+        st.session_state["conversation_history"].append({"sender": "あなた", "message": user_input})
+        # 統合回答の生成
+        persona_params = adjust_parameters(user_input)
+        if not st.session_state["conversation_history"] or len(st.session_state["conversation_history"]) == 1:
             combined_answer = generate_combined_answer(user_input, persona_params)
-            st.session_state["combined_answer"].append(combined_answer)
         else:
-            new_answer = continue_combined_answer(user_input, "\n".join(st.session_state["combined_answer"]))
-            st.session_state["combined_answer"].append(new_answer)
-        answer_container.markdown("### 統合回答")
-        # 最新の回答が上に来るように逆順で表示
-        for answer in reversed(st.session_state["combined_answer"]):
-            display_combined_answer(answer)
+            context = "\n".join([f"{item['sender']}: {item['message']}" for item in st.session_state["conversation_history"]])
+            combined_answer = continue_combined_answer(user_input, context)
+        st.session_state["conversation_history"].append({"sender": "回答", "message": combined_answer})
+        conversation_container.markdown("### 会話履歴")
+        display_conversation_history(st.session_state["conversation_history"])
     else:
         st.warning("発言を入力してください。")

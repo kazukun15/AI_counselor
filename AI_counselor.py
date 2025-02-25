@@ -8,20 +8,20 @@ import re
 st.set_page_config(page_title="役場メンタルケア - チャット", layout="wide")
 
 # ------------------------
-# ユーザー情報入力（画面上部に表示）
+# ユーザー情報入力（画面上部）
 # ------------------------
 user_name = st.text_input("あなたの名前を入力してください", value="役場職員", key="user_name")
+consult_type = st.radio("相談タイプを選択してください", ("本人の相談", "他者の相談", "発達障害相談"), key="consult_type")
 
 # ------------------------
 # 定数／設定
 # ------------------------
-# APIキーは .streamlit/secrets.toml に記述してください
-# 例: [general] api_key = "YOUR_GEMINI_API_KEY"
 API_KEY = st.secrets["general"]["api_key"]
 MODEL_NAME = "gemini-2.0-flash-001"  # 必要に応じて変更
+ROLES = ["精神科医師", "カウンセラー", "メンタリスト", "内科医"]
 
 # ------------------------
-# 会話履歴の初期化
+# セッションステート初期化
 # ------------------------
 if "conversation_history" not in st.session_state:
     st.session_state["conversation_history"] = []
@@ -66,9 +66,44 @@ def call_gemini_api(prompt: str) -> str:
     except Exception as e:
         return f"エラー: レスポンス解析に失敗しました -> {str(e)}"
 
-def generate_answer(user_message: str) -> str:
-    # ここでは、ユーザーの発言を基に単純なプロンプトを作成し、回答を生成します。
-    prompt = f"あなた: {user_message}\n回答:"
+def generate_combined_answer(question: str, persona_params: dict) -> str:
+    current_user = st.session_state.get("user_name", "ユーザー")
+    consult_type = st.session_state.get("consult_type", "本人の相談")
+    if consult_type == "発達障害相談":
+        consult_info = ("この相談は大人の発達障害（例：ADHDなど）に関するものです。"
+                        "信頼できる公的機関や学術論文を参照し、正確な情報に基づいた回答をお願いします。")
+    elif consult_type == "他者の相談":
+        consult_info = "この相談は、他者が抱える障害に関するものです。専門的な視点から客観的な判断をお願いします。"
+    else:
+        consult_info = "この相談は本人が抱える悩みに関するものです。"
+        
+    prompt = f"【{current_user}さんの質問】\n{question}\n\n{consult_info}\n"
+    prompt += "以下は、4人の専門家の視点です：\n"
+    for role, params in persona_params.items():
+        prompt += f"{role}は【{params['style']}な視点】で、{params['detail']}。\n"
+    prompt += (
+        "\n上記の意見を統合し、相手の心に寄り添いながら会話を広げ、"
+        "必要に応じて最終診断を行うシンプルで分かりやすい回答を生成してください。\n"
+        "回答は自然な日本語で出力してください。"
+    )
+    return call_gemini_api(prompt)
+
+def continue_combined_answer(additional_input: str, current_discussion: str) -> str:
+    prompt = (
+        "これまでの会話の流れ:\n" + current_discussion + "\n\n" +
+        "ユーザーの追加発言: " + additional_input + "\n\n" +
+        "上記の流れを踏まえ、さらに相手の心に寄り添い、会話を広げながら、"
+        "必要なら最終診断を行うシンプルな回答を生成してください。\n"
+        "回答は自然な日本語で出力してください。"
+    )
+    return call_gemini_api(prompt)
+
+def generate_summary(discussion: str) -> str:
+    prompt = (
+        "以下は4人の統合された会話内容です:\n" + discussion + "\n\n" +
+        "この内容を踏まえて、役場職員のメンタルヘルスケアに関するまとめ回答を生成してください。\n"
+        "自然な日本語文で出力し、余計なJSON形式は不要です。"
+    )
     return call_gemini_api(prompt)
 
 def display_chat_bubble(sender: str, message: str):
@@ -110,18 +145,43 @@ def display_conversation_history(history: list):
 # Streamlit アプリ本体
 # ------------------------
 
-st.header("会話履歴")
-display_conversation_history(st.session_state["conversation_history"])
+st.title("役場メンタルケア - 会話サポート")
 
+# --- 上部：会話履歴表示エリア ---
+st.header("会話履歴")
+conversation_container = st.empty()
+
+# --- 上部：まとめ回答ボタン ---
+if st.button("会話をまとめる"):
+    if st.session_state.get("conversation_history", []):
+        summary = generate_summary("\n".join([f"{item['sender']}: {item['message']}" for item in st.session_state["conversation_history"]]))
+        st.session_state["summary"] = summary
+        st.markdown("### まとめ回答\n" + "**まとめ:** " + summary)
+    else:
+        st.warning("まずは会話を開始してください。")
+
+# --- 下部：ユーザー入力エリア ---
 st.header("メッセージ入力")
 with st.form("chat_form", clear_on_submit=True):
     user_message = st.text_area("新たな発言を入力してください", placeholder="ここに入力", height=100, key="user_input")
     submitted = st.form_submit_button("送信")
 
 if submitted and user_message.strip():
+    # conversation_history をリストとして初期化
+    if "conversation_history" not in st.session_state or not isinstance(st.session_state["conversation_history"], list):
+        st.session_state["conversation_history"] = []
     # ユーザーの発言を追加
     st.session_state["conversation_history"].append({"sender": "あなた", "message": user_message})
-    # 回答を生成
-    answer = generate_answer(user_message)
-    st.session_state["conversation_history"].append({"sender": "回答", "message": answer})
-    st.experimental_rerun()
+    # 統合回答の生成
+    persona_params = adjust_parameters(user_message)
+    if len(st.session_state["conversation_history"]) == 1:
+        combined_answer = generate_combined_answer(user_message, persona_params)
+    else:
+        context = "\n".join([f"{item['sender']}: {item['message']}" for item in st.session_state["conversation_history"]])
+        combined_answer = continue_combined_answer(user_message, context)
+    st.session_state["conversation_history"].append({"sender": "回答", "message": combined_answer})
+    conversation_container.markdown("### 会話履歴")
+    display_conversation_history(st.session_state["conversation_history"])
+else:
+    if submitted:
+        st.warning("発言を入力してください。")

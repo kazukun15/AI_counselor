@@ -21,10 +21,10 @@ MODEL_NAME = "gemini-2.0-flash-001"  # 必要に応じて変更
 ROLES = ["精神科医師", "カウンセラー", "メンタリスト", "内科医"]
 
 # ------------------------
-# セッションステート初期化
+# セッションステート初期化（会話ターン単位で管理）
 # ------------------------
-if "conversation_history" not in st.session_state:
-    st.session_state["conversation_history"] = []
+if "conversation_turns" not in st.session_state:
+    st.session_state["conversation_turns"] = []
 
 # ------------------------
 # ヘルパー関数
@@ -89,16 +89,15 @@ def generate_combined_answer(question: str, persona_params: dict) -> str:
         
     prompt = f"【{current_user}さんの質問】\n{question}\n\n{consult_info}\n"
     prompt += "以下は、4人の専門家の意見を統合した結果です。\n"
-    prompt += "ただし、最終的な回答は内部の議論内容を含まず、あなたに対する一対一のシンプルな回答として出力してください。\n"
+    prompt += "ただし、内部の専門家の議論内容は伏せ、あなたに対する一対一の回答として出力してください。\n"
     prompt += "回答は300～400文字程度で、自然な日本語で出力してください。"
     return truncate_text(call_gemini_api(prompt), 400)
 
-def continue_combined_answer(additional_input: str, current_discussion: str) -> str:
+def continue_combined_answer(additional_input: str, current_turns: str) -> str:
     prompt = (
-        "これまでの会話の流れ:\n" + current_discussion + "\n\n" +
+        "これまでの会話の流れ:\n" + current_turns + "\n\n" +
         "ユーザーの追加発言: " + additional_input + "\n\n" +
-        "上記の流れを踏まえ、さらに会話を広げ、内部の専門家の議論内容は伏せた上で、"
-        "あなたに対する一対一のシンプルな回答を生成してください。\n"
+        "上記の流れを踏まえ、さらに会話を広げ、最終的な回答を生成してください。\n"
         "回答は300～400文字程度で、自然な日本語で出力してください。"
     )
     return truncate_text(call_gemini_api(prompt), 400)
@@ -110,8 +109,9 @@ def generate_summary(discussion: str) -> str:
     )
     return call_gemini_api(prompt)
 
-def display_chat_bubble(sender: str, message: str):
-    if sender == "あなた":
+def display_chat_bubble(sender: str, message: str, align: str):
+    # align: "left" または "right"
+    if align == "right":
         bubble_html = f"""
         <div style="
             background-color: #DCF8C6;
@@ -146,10 +146,12 @@ def display_chat_bubble(sender: str, message: str):
         """
     st.markdown(bubble_html, unsafe_allow_html=True)
 
-def display_conversation_history(history: list):
-    # 新しい会話が上部に来るように逆順で表示
-    for item in reversed(history):
-        display_chat_bubble(item["sender"], item["message"])
+def display_conversation_turns(turns: list):
+    # 最新の会話ターンが上に来るように逆順で表示
+    for turn in reversed(turns):
+        # ユーザーの発言（右寄せ）とその回答（左寄せ）を表示
+        display_chat_bubble("あなた", turn["user"], "right")
+        display_chat_bubble("回答", turn["answer"], "left")
 
 # ------------------------
 # Streamlit アプリ本体
@@ -163,8 +165,8 @@ conversation_container = st.empty()
 
 # --- 上部：まとめ回答ボタン ---
 if st.button("会話をまとめる"):
-    if st.session_state.get("conversation_history", []):
-        summary = generate_summary("\n".join([f"{item['sender']}: {item['message']}" for item in st.session_state["conversation_history"]]))
+    if st.session_state.get("conversation_turns", []):
+        summary = generate_summary("\n".join([f"あなた: {turn['user']}\n回答: {turn['answer']}" for turn in st.session_state["conversation_turns"]]))
         st.session_state["summary"] = summary
         st.markdown("### まとめ回答\n" + "**まとめ:** " + summary)
     else:
@@ -178,17 +180,20 @@ with st.form("chat_form", clear_on_submit=True):
 
 if submitted:
     if user_message.strip():
-        if "conversation_history" not in st.session_state or not isinstance(st.session_state["conversation_history"], list):
-            st.session_state["conversation_history"] = []
-        st.session_state["conversation_history"].append({"sender": "あなた", "message": user_message})
+        if "conversation_turns" not in st.session_state or not isinstance(st.session_state["conversation_turns"], list):
+            st.session_state["conversation_turns"] = []
+        # ユーザーの発言を取得
+        user_text = user_message
+        # 統合回答の生成
         persona_params = adjust_parameters(user_message)
-        if len(st.session_state["conversation_history"]) == 1:
-            combined_answer = generate_combined_answer(user_message, persona_params)
+        if len(st.session_state["conversation_turns"]) == 0:
+            answer_text = generate_combined_answer(user_message, persona_params)
         else:
-            context = "\n".join([f"{item['sender']}: {item['message']}" for item in st.session_state["conversation_history"]])
-            combined_answer = continue_combined_answer(user_message, context)
-        st.session_state["conversation_history"].append({"sender": "回答", "message": combined_answer})
+            context = "\n".join([f"あなた: {turn['user']}\n回答: {turn['answer']}" for turn in st.session_state["conversation_turns"]])
+            answer_text = continue_combined_answer(user_message, context)
+        # 新しい会話ターンとして追加
+        st.session_state["conversation_turns"].append({"user": user_text, "answer": answer_text})
         conversation_container.markdown("### 会話履歴")
-        display_conversation_history(st.session_state["conversation_history"])
+        display_conversation_turns(st.session_state["conversation_turns"])
     else:
         st.warning("発言を入力してください。")

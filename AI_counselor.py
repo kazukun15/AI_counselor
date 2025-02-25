@@ -11,7 +11,7 @@ st.set_page_config(page_title="役場メンタルケア - チャット", layout=
 # ユーザー情報入力（画面上部）
 # ------------------------
 user_name = st.text_input("あなたの名前を入力してください", value="役場職員", key="user_name")
-consult_type = st.radio("相談タイプを選択してください", ("本人の相談", "他者の相談", "発達障害相談"), key="consult_type")
+consult_type = st.radio("相談タイプを選択してください", ("本人の相談", "他者の相談", "デリケートな相談"), key="consult_type")
 
 # ------------------------
 # 定数／設定

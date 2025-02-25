@@ -145,7 +145,7 @@ def display_conversation_history(history: list):
 # Streamlit アプリ本体
 # ------------------------
 
-st.title("役場メンタルケア - 会話サポート")
+st.title("役場メンタルケア - チャットサポート")
 
 # --- 上部：会話履歴表示エリア ---
 st.header("会話履歴")
@@ -163,11 +163,10 @@ if st.button("会話をまとめる"):
 # --- 下部：ユーザー入力エリア ---
 st.header("メッセージ入力")
 with st.form("chat_form", clear_on_submit=True):
-    user_message = st.text_area("新たな発言を入力してください", placeholder="ここに入力", height=100, key="user_input")
+    user_message = st.text_area("新たな発言を入力してください", placeholder="ここに入力", height=100, key="user_message")
     submitted = st.form_submit_button("送信")
 
 if submitted and user_message.strip():
-    # conversation_history をリストとして初期化
     if "conversation_history" not in st.session_state or not isinstance(st.session_state["conversation_history"], list):
         st.session_state["conversation_history"] = []
     # ユーザーの発言を追加

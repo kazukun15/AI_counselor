@@ -96,7 +96,7 @@ def generate_combined_answer(question: str, persona_params: dict) -> str:
         "ただし、内部の議論内容は伏せ、あなたに対する一対一の自然な会話として、"
         "たとえば「どうしたの？もう少し詳しく教えて」といった返答を含む回答を、"
         "200～300文字程度で生成してください。"
-        "会話はわかりやすく、明瞭に生成してください。
+        "会話はわかりやすく、明瞭に生成してください。"
         "親しみやすい言葉をつかってください。 "
     )
     return truncate_text(call_gemini_api(prompt), 400)

@@ -88,16 +88,20 @@ def generate_combined_answer(question: str, persona_params: dict) -> str:
         consult_info = "この相談は本人が抱える悩みに関するものです。"
         
     prompt = f"【{current_user}さんの質問】\n{question}\n\n{consult_info}\n"
-    prompt += "以下は、4人の専門家の意見を統合した結果です。\n"
-    prompt += "ただし、内部の専門家の議論内容は伏せ、あなたに対する一対一の回答として出力してください。\n"
-    prompt += "回答は300～400文字程度で、自然な日本語で出力してください。"
+    # ここでは、4人の専門家の意見を内部で参考にしながらも、最終的には一対一の自然な会話として回答を生成するよう指示する
+    prompt += (
+        "以下は、4人の専門家の意見を参考にした結果です。内部の議論内容は伏せ、"
+        "あなたに対する自然な会話の返答として、例えば「どうしたの？もっと詳しく教えて」などの形で、"
+        "300～400文字程度で回答してください。"
+    )
     return truncate_text(call_gemini_api(prompt), 400)
 
 def continue_combined_answer(additional_input: str, current_turns: str) -> str:
     prompt = (
         "これまでの会話の流れ:\n" + current_turns + "\n\n" +
         "ユーザーの追加発言: " + additional_input + "\n\n" +
-        "上記の流れを踏まえ、さらに会話を広げ、最終的な回答を生成してください。\n"
+        "上記の流れを踏まえ、さらに自然な会話として、例えば「それでどうなったの？」など、"
+        "あなたに対する一対一の返答を生成してください。"
         "回答は300～400文字程度で、自然な日本語で出力してください。"
     )
     return truncate_text(call_gemini_api(prompt), 400)
@@ -110,7 +114,6 @@ def generate_summary(discussion: str) -> str:
     return call_gemini_api(prompt)
 
 def display_chat_bubble(sender: str, message: str, align: str):
-    # align: "left" または "right"
     if align == "right":
         bubble_html = f"""
         <div style="
@@ -149,7 +152,6 @@ def display_chat_bubble(sender: str, message: str, align: str):
 def display_conversation_turns(turns: list):
     # 最新の会話ターンが上に来るように逆順で表示
     for turn in reversed(turns):
-        # ユーザーの発言（右寄せ）とその回答（左寄せ）を表示
         display_chat_bubble("あなた", turn["user"], "right")
         display_chat_bubble("回答", turn["answer"], "left")
 

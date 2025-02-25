@@ -97,8 +97,8 @@ def generate_combined_answer(question: str, persona_params: dict) -> str:
     for role, params in persona_params.items():
         prompt += f"{role}は【{params['style']}な視点】で、{params['detail']}。\n"
     prompt += (
-        "\n上記の意見を統合し、まずは相手の心に寄り添いながら、"
-        "会話を広げ、十分な情報を得た上で、必要に応じて最終診断を行うシンプルで分かりやすい回答を生成してください。\n"
+        "\n上記の意見を統合し、相手の心に寄り添いながら、会話を広げ、"
+        "必要に応じて最終診断を行うシンプルで分かりやすい回答を生成してください。\n"
         "回答は自然な日本語で出力してください。"
     )
     return call_gemini_api(prompt)
@@ -107,7 +107,7 @@ def continue_combined_answer(additional_input: str, current_discussion: str) -> 
     prompt = (
         "これまでの会話の流れ:\n" + current_discussion + "\n\n" +
         "ユーザーの追加発言: " + additional_input + "\n\n" +
-        "上記の流れを踏まえ、さらに相手の心に寄り添い、話を広げながら、"
+        "上記の流れを踏まえ、さらに相手に寄り添い、会話を広げながら、"
         "必要なら最終診断を行うシンプルな回答を生成してください。\n"
         "回答は自然な日本語で出力してください。"
     )
@@ -123,8 +123,8 @@ def generate_summary(discussion: str) -> str:
 
 def display_conversation_history(history: list):
     """
-    会話履歴（交互の発言）を上から下に順番通りに表示します。
-    ユーザー発言は青系、回答は薄い黄色で表示します。
+    会話履歴を順番通りに上から下に表示します。
+    ユーザー発言は「あなた」、システム回答は「回答」として表示します。
     """
     for item in history:
         if item["sender"] == "あなた":
@@ -165,7 +165,7 @@ def display_conversation_history(history: list):
 
 st.title("役場メンタルケア - 会話サポート")
 
-# --- 上部：統合回答表示エリア（会話履歴） ---
+# --- 上部：会話履歴表示エリア ---
 st.header("会話履歴")
 conversation_container = st.empty()
 
@@ -189,11 +189,11 @@ if submit_button:
         # conversation_history をリストとして初期化
         if "conversation_history" not in st.session_state or not isinstance(st.session_state["conversation_history"], list):
             st.session_state["conversation_history"] = []
-        # ユーザー発言を追加
+        # ユーザーの発言を追加
         st.session_state["conversation_history"].append({"sender": "あなた", "message": user_input})
         # 統合回答の生成
         persona_params = adjust_parameters(user_input)
-        if not st.session_state["conversation_history"] or len(st.session_state["conversation_history"]) == 1:
+        if len(st.session_state["conversation_history"]) == 1:
             combined_answer = generate_combined_answer(user_input, persona_params)
         else:
             context = "\n".join([f"{item['sender']}: {item['message']}" for item in st.session_state["conversation_history"]])

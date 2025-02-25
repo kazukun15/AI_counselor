@@ -29,11 +29,10 @@ if "conversation_turns" not in st.session_state:
 # ------------------------
 # ヘルパー関数
 # ------------------------
-def truncate_text(text, max_length=400):
+def truncate_text(text, max_length=200):
     return text if len(text) <= max_length else text[:max_length] + "…"
 
-def split_message(message: str, chunk_size=400) -> list:
-    # 指定サイズで文字列を分割する
+def split_message(message: str, chunk_size=200) -> list:
     return [message[i:i+chunk_size] for i in range(0, len(message), chunk_size)]
 
 def remove_json_artifacts(text: str) -> str:
@@ -94,9 +93,9 @@ def generate_combined_answer(question: str, persona_params: dict) -> str:
     prompt = f"【{current_user}さんの質問】\n{question}\n\n{consult_info}\n"
     prompt += (
         "以下は、4人の専門家の意見を内部で統合した結果です。"
-        "内部の議論内容は伏せ、あなたに対する一対一の自然な会話として回答してください。"
-        "例えば、「どうしたの？もう少し詳しく教えて」などの返答を含む、"
-        "300～400文字程度の回答を生成してください。"
+        "ただし、内部の議論内容は伏せ、あなたに対する一対一の自然な会話として、"
+        "たとえば「どうしたの？もう少し詳しく教えて」といった返答を含む回答を、"
+        "300～400文字程度で生成してください。"
     )
     return truncate_text(call_gemini_api(prompt), 400)
 
@@ -105,8 +104,8 @@ def continue_combined_answer(additional_input: str, current_turns: str) -> str:
         "これまでの会話の流れ:\n" + current_turns + "\n\n" +
         "ユーザーの追加発言: " + additional_input + "\n\n" +
         "上記の流れを踏まえ、さらに自然な会話として、"
-        "例えば「それでどうなったの？」など、あなたに対する一対一の返答を生成してください。"
-        "回答は300～400文字程度で出力してください。"
+        "たとえば「それでどうなったの？」といった返答を含む回答を、"
+        "300～400文字程度で生成してください。"
     )
     return truncate_text(call_gemini_api(prompt), 400)
 
@@ -156,10 +155,10 @@ def display_chat_bubble(sender: str, message: str, align: str):
 def display_conversation_turns(turns: list):
     # 最新の会話ターンが上に来るように逆順で表示
     for turn in reversed(turns):
-        # ユーザー発言は右寄せ
+        # ユーザーの発言は右寄せ
         display_chat_bubble("あなた", turn["user"], "right")
         # 回答が長い場合は分割して複数バブルに表示
-        answer_chunks = split_message(turn["answer"], 400)
+        answer_chunks = split_message(turn["answer"], 200)
         for i, chunk in enumerate(answer_chunks):
             suffix = " 👉" if i < len(answer_chunks)-1 else ""
             display_chat_bubble("回答", chunk + suffix, "left")

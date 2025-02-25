@@ -88,21 +88,16 @@ def generate_combined_answer(question: str, persona_params: dict) -> str:
         consult_info = "この相談は本人が抱える悩みに関するものです。"
         
     prompt = f"【{current_user}さんの質問】\n{question}\n\n{consult_info}\n"
-    prompt += "以下は、4人の専門家の視点です：\n"
-    for role, params in persona_params.items():
-        prompt += f"{role}は【{params['style']}な視点】で、{params['detail']}。\n"
-    prompt += (
-        "\n上記の意見を統合し、人間同士の会話のように、質問と回答を交互に繰り返す形式で、"
-        "相手の心に寄り添いながら会話を広げ、十分な情報を得た上で、最終診断を行うシンプルで分かりやすい回答を生成してください。\n"
-        "回答は300～400文字程度で、自然な日本語で出力してください。"
-    )
+    prompt += "以下は、4人の専門家の意見を統合した結果です。"
+    prompt += "その意見を基に、人間同士の会話のように質問と回答を交互に繰り返す形で、最終的な回答を生成してください。"
+    prompt += "回答は300～400文字程度で、自然な日本語で出力してください。"
     return truncate_text(call_gemini_api(prompt), 400)
 
 def continue_combined_answer(additional_input: str, current_discussion: str) -> str:
     prompt = (
         "これまでの会話の流れ:\n" + current_discussion + "\n\n" +
         "ユーザーの追加発言: " + additional_input + "\n\n" +
-        "上記の流れを踏まえ、さらに会話を広げ、必要なら最終診断を行うシンプルな回答を生成してください。\n"
+        "上記の流れを踏まえ、さらに会話を広げながら、最終的な回答を生成してください。"
         "回答は300～400文字程度で、自然な日本語で出力してください。"
     )
     return truncate_text(call_gemini_api(prompt), 400)
@@ -151,7 +146,8 @@ def display_chat_bubble(sender: str, message: str):
     st.markdown(bubble_html, unsafe_allow_html=True)
 
 def display_conversation_history(history: list):
-    for item in history:
+    # 最新の発言が上に表示されるように逆順で表示
+    for item in reversed(history):
         display_chat_bubble(item["sender"], item["message"])
 
 # ------------------------
@@ -183,9 +179,7 @@ if submitted:
     if user_message.strip():
         if "conversation_history" not in st.session_state or not isinstance(st.session_state["conversation_history"], list):
             st.session_state["conversation_history"] = []
-        # ユーザーの発言を追加
         st.session_state["conversation_history"].append({"sender": "あなた", "message": user_message})
-        # 統合回答の生成
         persona_params = adjust_parameters(user_message)
         if len(st.session_state["conversation_history"]) == 1:
             combined_answer = generate_combined_answer(user_message, persona_params)

@@ -29,7 +29,7 @@ if "conversation_history" not in st.session_state:
 # ------------------------
 # ヘルパー関数
 # ------------------------
-def truncate_text(text, max_length=60):
+def truncate_text(text, max_length=400):
     return text if len(text) <= max_length else text[:max_length] + "…"
 
 def remove_json_artifacts(text: str) -> str:
@@ -88,18 +88,24 @@ def generate_combined_answer(question: str, persona_params: dict) -> str:
         consult_info = "この相談は本人が抱える悩みに関するものです。"
         
     prompt = f"【{current_user}さんの質問】\n{question}\n\n{consult_info}\n"
-    prompt += "以下は、精神科医師、カウンセラー、メンタリスト、内科医の4人が議論した結果です。\n"
-    prompt += "それぞれの意見を統合し、最終的な回答を人間らしい会話形式で、60文字程度で生成してください。"
-    return truncate_text(call_gemini_api(prompt), 60)
+    prompt += "以下は、4人の専門家の視点です：\n"
+    for role, params in persona_params.items():
+        prompt += f"{role}は【{params['style']}な視点】で、{params['detail']}。\n"
+    prompt += (
+        "\n上記の意見を統合し、人間同士の会話のように、質問と回答を交互に繰り返す形式で、"
+        "相手の心に寄り添いながら会話を広げ、十分な情報を得た上で、最終診断を行うシンプルで分かりやすい回答を生成してください。\n"
+        "回答は300～400文字程度で、自然な日本語で出力してください。"
+    )
+    return truncate_text(call_gemini_api(prompt), 400)
 
 def continue_combined_answer(additional_input: str, current_discussion: str) -> str:
     prompt = (
         "これまでの会話の流れ:\n" + current_discussion + "\n\n" +
         "ユーザーの追加発言: " + additional_input + "\n\n" +
-        "上記の流れを踏まえ、4人の専門家が議論した結果を統合し、"
-        "最終的な回答を人間らしい会話形式で、60文字程度で生成してください。"
+        "上記の流れを踏まえ、さらに会話を広げ、必要なら最終診断を行うシンプルな回答を生成してください。\n"
+        "回答は300～400文字程度で、自然な日本語で出力してください。"
     )
-    return truncate_text(call_gemini_api(prompt), 60)
+    return truncate_text(call_gemini_api(prompt), 400)
 
 def generate_summary(discussion: str) -> str:
     prompt = (

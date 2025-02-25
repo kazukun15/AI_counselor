@@ -66,6 +66,14 @@ def call_gemini_api(prompt: str) -> str:
     except Exception as e:
         return f"エラー: レスポンス解析に失敗しました -> {str(e)}"
 
+def adjust_parameters(question: str) -> dict:
+    params = {}
+    params["精神科医師"] = {"style": "専門的", "detail": "精神科のナレッジを基に的確な判断を下す"}
+    params["カウンセラー"] = {"style": "共感的", "detail": "寄り添いながら優しくサポートする"}
+    params["メンタリスト"] = {"style": "洞察力に富んだ", "detail": "多角的な心理学的視点から分析する"}
+    params["内科医"] = {"style": "実直な", "detail": "身体面の不調や他の病気を慎重にチェックする"}
+    return params
+
 def generate_combined_answer(question: str, persona_params: dict) -> str:
     current_user = st.session_state.get("user_name", "ユーザー")
     consult_type = st.session_state.get("consult_type", "本人の相談")
@@ -166,21 +174,21 @@ with st.form("chat_form", clear_on_submit=True):
     user_message = st.text_area("新たな発言を入力してください", placeholder="ここに入力", height=100, key="user_message")
     submitted = st.form_submit_button("送信")
 
-if submitted and user_message.strip():
-    if "conversation_history" not in st.session_state or not isinstance(st.session_state["conversation_history"], list):
-        st.session_state["conversation_history"] = []
-    # ユーザーの発言を追加
-    st.session_state["conversation_history"].append({"sender": "あなた", "message": user_message})
-    # 統合回答の生成
-    persona_params = adjust_parameters(user_message)
-    if len(st.session_state["conversation_history"]) == 1:
-        combined_answer = generate_combined_answer(user_message, persona_params)
+if submitted:
+    if user_message.strip():
+        if "conversation_history" not in st.session_state or not isinstance(st.session_state["conversation_history"], list):
+            st.session_state["conversation_history"] = []
+        # ユーザーの発言を追加
+        st.session_state["conversation_history"].append({"sender": "あなた", "message": user_message})
+        # 統合回答の生成
+        persona_params = adjust_parameters(user_message)
+        if len(st.session_state["conversation_history"]) == 1:
+            combined_answer = generate_combined_answer(user_message, persona_params)
+        else:
+            context = "\n".join([f"{item['sender']}: {item['message']}" for item in st.session_state["conversation_history"]])
+            combined_answer = continue_combined_answer(user_message, context)
+        st.session_state["conversation_history"].append({"sender": "回答", "message": combined_answer})
+        conversation_container.markdown("### 会話履歴")
+        display_conversation_history(st.session_state["conversation_history"])
     else:
-        context = "\n".join([f"{item['sender']}: {item['message']}" for item in st.session_state["conversation_history"]])
-        combined_answer = continue_combined_answer(user_message, context)
-    st.session_state["conversation_history"].append({"sender": "回答", "message": combined_answer})
-    conversation_container.markdown("### 会話履歴")
-    display_conversation_history(st.session_state["conversation_history"])
-else:
-    if submitted:
         st.warning("発言を入力してください。")

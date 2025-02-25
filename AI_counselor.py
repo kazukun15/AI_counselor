@@ -10,7 +10,7 @@ st.set_page_config(page_title="職員　ヘルスケアボット", layout="wide"
 # ------------------------
 # ユーザー情報入力（画面上部）
 # ------------------------
-user_name = st.text_input("あなたの名前を入力してください", value="役場職員", key="user_name")
+user_name = st.text_input("あなたの名前を入力してください", value="県庁職員", key="user_name")
 consult_type = st.radio("相談タイプを選択してください", ("本人の相談", "他者の相談", "デリケートな相談"), key="consult_type")
 
 # ------------------------
@@ -114,7 +114,7 @@ def continue_combined_answer(additional_input: str, current_turns: str) -> str:
 def generate_summary(discussion: str) -> str:
     prompt = (
         "以下は4人の統合された会話内容です:\n" + discussion + "\n\n" +
-        "この内容を踏まえて、役場職員のメンタルヘルスケアに関するまとめ回答を生成してください。"
+        "この内容を踏まえて、県庁職員のメンタルヘルスケアに関するまとめ回答を生成してください。"
     )
     return call_gemini_api(prompt)
 
@@ -169,7 +169,7 @@ def display_conversation_turns(turns: list):
 # Streamlit アプリ本体
 # ------------------------
 
-st.title("役場メンタルケア - チャットサポート")
+st.title("職員　ヘルスケアボット")
 
 # --- 上部：会話履歴表示エリア ---
 st.header("会話履歴")

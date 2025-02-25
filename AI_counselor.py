@@ -12,7 +12,7 @@ st.set_page_config(page_title="役場メンタルケア", layout="wide")
 # ユーザー情報入力（画面上部に表示）
 # ------------------------
 user_name = st.text_input("あなたの名前を入力してください", value="役場職員", key="user_name")
-consult_type = st.radio("相談タイプを選択してください", ("本人の相談", "他者の相談", "発達障害相談"), key="consult_type")
+consult_type = st.radio("相談タイプを選択してください", ("本人の相談", "他者の相談", "デリケートな相談"), key="consult_type")
 
 # ------------------------
 # 定数／設定
@@ -88,7 +88,7 @@ def generate_combined_answer(question: str, persona_params: dict) -> str:
     current_user = st.session_state.get("user_name", "ユーザー")
     # 相談タイプに応じた文言を追加
     consult_type = st.session_state.get("consult_type", "本人の相談")
-    if consult_type == "デリケートな話題":
+    if consult_type == "発達障害の相談":
         consult_info = "この相談は大人の発達障害（例：ADHDなど）に関するものです。専門的かつ信頼できる公的情報や論文を参照し、虚偽情報は一切含めず、正確な回答をお願いします。"
     elif consult_type == "他者の相談":
         consult_info = "この相談は、他者が抱える障害に関するものです。専門的な視点から、客観的な判断をお願いします。"

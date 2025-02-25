@@ -9,14 +9,10 @@ import random
 st.set_page_config(page_title="役場メンタルケア", layout="wide")
 
 # ------------------------
-# ユーザーの名前入力（画面上部に表示）
+# ユーザー情報入力（画面上部に表示）
 # ------------------------
 user_name = st.text_input("あなたの名前を入力してください", value="役場職員", key="user_name")
-
-# ------------------------
-# 相談タイプ選択（本人の相談 vs 他者の相談）
-# ------------------------
-consult_type = st.radio("相談タイプを選択してください", ("本人の相談", "他者の相談"), key="consult_type")
+consult_type = st.radio("相談タイプを選択してください", ("本人の相談", "他者の相談", "発達障害相談"), key="consult_type")
 
 # ------------------------
 # 定数／設定
@@ -91,16 +87,20 @@ def call_gemini_api(prompt: str) -> str:
 def generate_combined_answer(question: str, persona_params: dict) -> str:
     current_user = st.session_state.get("user_name", "ユーザー")
     # 相談タイプに応じた文言を追加
-    consult_info = "この相談は本人が抱える悩みに関するものです。" if st.session_state.get("consult_type", "本人の相談") == "本人の相談" else "この相談は、他者が抱える障害に関するものです。"
+    consult_type = st.session_state.get("consult_type", "本人の相談")
+    if consult_type == "発達障害相談":
+        consult_info = "この相談は大人の発達障害（例：ADHDなど）に関するものです。専門的かつ信頼できる公的情報や論文を参照し、虚偽情報は一切含めず、正確な回答をお願いします。"
+    elif consult_type == "他者の相談":
+        consult_info = "この相談は、他者が抱える障害に関するものです。専門的な視点から、客観的な判断をお願いします。"
+    else:
+        consult_info = "この相談は本人が抱える悩みに関するものです。"
+        
     prompt = f"【{current_user}さんの質問】\n{question}\n\n{consult_info}\n"
     prompt += "以下は、4人の専門家の視点です：\n"
     for role, params in persona_params.items():
         prompt += f"{role}は【{params['style']}な視点】で、{params['detail']}。\n"
     prompt += (
-        "\n上記の意見を統合し、まずは相手の心に寄り添い、話を広げながら、"
-        "必要に応じて最終診断を行うシンプルで分かりやすい回答を生成してください。\n"
-        "また、回答に必要な知識が不足している場合は、信頼できる公的機関のサイトや学術論文を参照してください。"
-        "虚偽情報（ハルシネーション）は絶対に含めないでください。\n"
+        "\n上記の意見を統合し、まずは相手の心に寄り添い、話を広げながら、必要に応じて最終診断を行うシンプルで分かりやすい回答を生成してください。\n"
         "回答は自然な日本語で出力してください。"
     )
     return call_gemini_api(prompt)
@@ -109,9 +109,7 @@ def continue_combined_answer(additional_input: str, current_discussion: str) -> 
     prompt = (
         "これまでの会話の流れ:\n" + current_discussion + "\n\n" +
         "ユーザーの追加発言: " + additional_input + "\n\n" +
-        "上記の流れを踏まえ、さらに相手に寄り添い、話を広げながら、"
-        "必要なら最終診断を行うシンプルな回答を生成してください。\n"
-        "もし回答に不足があれば、信頼できる公的機関の情報や論文を参照し、虚偽情報は一切含めないでください。\n"
+        "上記の流れを踏まえ、さらに相手に寄り添い、話を広げながら、必要なら最終診断を行うシンプルな回答を生成してください。\n"
         "回答は自然な日本語で出力してください。"
     )
     return call_gemini_api(prompt)
@@ -191,7 +189,6 @@ st.title("役場メンタルケア - 会話サポート")
 
 # --- 上部：統合回答表示エリア ---
 st.header("回答")
-# 会話をまとめるボタンを上部に配置
 if st.button("会話をまとめる"):
     if st.session_state.get("combined_answer", []):
         summary = generate_summary("\n".join(st.session_state["combined_answer"]))

@@ -27,8 +27,10 @@ if "conversation_history" not in st.session_state:
     st.session_state["conversation_history"] = []
 
 # ------------------------
-# 関数定義
+# ヘルパー関数
 # ------------------------
+def truncate_text(text, max_length=60):
+    return text if len(text) <= max_length else text[:max_length] + "…"
 
 def remove_json_artifacts(text: str) -> str:
     if not isinstance(text, str):
@@ -91,30 +93,28 @@ def generate_combined_answer(question: str, persona_params: dict) -> str:
         prompt += f"{role}は【{params['style']}な視点】で、{params['detail']}。\n"
     prompt += (
         "\n上記の意見を統合し、相手の心に寄り添いながら会話を広げ、"
-        "必要に応じて最終診断を行うシンプルで分かりやすい回答を生成してください。\n"
-        "回答は自然な日本語で出力してください。"
+        "必要に応じ最終診断を行うシンプルで分かりやすい回答を、60文字程度で生成してください。"
     )
-    return call_gemini_api(prompt)
+    return truncate_text(call_gemini_api(prompt), 60)
 
 def continue_combined_answer(additional_input: str, current_discussion: str) -> str:
     prompt = (
         "これまでの会話の流れ:\n" + current_discussion + "\n\n" +
         "ユーザーの追加発言: " + additional_input + "\n\n" +
-        "上記の流れを踏まえ、さらに相手の心に寄り添い、会話を広げながら、"
-        "必要なら最終診断を行うシンプルな回答を生成してください。\n"
-        "回答は自然な日本語で出力してください。"
+        "上記の流れを踏まえ、さらに会話を広げ、"
+        "必要なら最終診断を行うシンプルな回答を、60文字程度で生成してください。"
     )
-    return call_gemini_api(prompt)
+    return truncate_text(call_gemini_api(prompt), 60)
 
 def generate_summary(discussion: str) -> str:
     prompt = (
         "以下は4人の統合された会話内容です:\n" + discussion + "\n\n" +
-        "この内容を踏まえて、役場職員のメンタルヘルスケアに関するまとめ回答を生成してください。\n"
-        "自然な日本語文で出力し、余計なJSON形式は不要です。"
+        "この内容を踏まえて、役場職員のメンタルヘルスケアに関するまとめ回答を生成してください。"
     )
     return call_gemini_api(prompt)
 
 def display_chat_bubble(sender: str, message: str):
+    # ユーザー発言は右寄せ、回答は左寄せ
     if sender == "あなた":
         bubble_html = f"""
         <div style="
@@ -125,6 +125,9 @@ def display_chat_bubble(sender: str, message: str):
             margin: 5px 0;
             color: #000;
             font-family: Arial, sans-serif;
+            text-align: right;
+            margin-left: auto;
+            max-width: 70%;
         ">
             <strong>{sender}</strong>: {message}
         </div>
@@ -139,6 +142,8 @@ def display_chat_bubble(sender: str, message: str):
             margin: 5px 0;
             color: #000;
             font-family: Arial, sans-serif;
+            text-align: left;
+            max-width: 70%;
         ">
             <strong>{sender}</strong>: {message}
         </div>
@@ -178,9 +183,7 @@ if submitted:
     if user_message.strip():
         if "conversation_history" not in st.session_state or not isinstance(st.session_state["conversation_history"], list):
             st.session_state["conversation_history"] = []
-        # ユーザーの発言を追加
         st.session_state["conversation_history"].append({"sender": "あなた", "message": user_message})
-        # 統合回答の生成
         persona_params = adjust_parameters(user_message)
         if len(st.session_state["conversation_history"]) == 1:
             combined_answer = generate_combined_answer(user_message, persona_params)

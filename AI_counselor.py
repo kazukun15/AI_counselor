@@ -32,6 +32,10 @@ if "conversation_turns" not in st.session_state:
 def truncate_text(text, max_length=400):
     return text if len(text) <= max_length else text[:max_length] + "…"
 
+def split_message(message: str, chunk_size=400) -> list:
+    # 指定サイズで文字列を分割する
+    return [message[i:i+chunk_size] for i in range(0, len(message), chunk_size)]
+
 def remove_json_artifacts(text: str) -> str:
     if not isinstance(text, str):
         text = str(text) if text else ""
@@ -88,11 +92,11 @@ def generate_combined_answer(question: str, persona_params: dict) -> str:
         consult_info = "この相談は本人が抱える悩みに関するものです。"
         
     prompt = f"【{current_user}さんの質問】\n{question}\n\n{consult_info}\n"
-    # ここでは、4人の専門家の意見を内部で参考にしながらも、最終的には一対一の自然な会話として回答を生成するよう指示する
     prompt += (
-        "以下は、4人の専門家の意見を参考にした結果です。内部の議論内容は伏せ、"
-        "あなたに対する自然な会話の返答として、例えば「どうしたの？もっと詳しく教えて」などの形で、"
-        "300～400文字程度で回答してください。"
+        "以下は、4人の専門家の意見を内部で統合した結果です。"
+        "内部の議論内容は伏せ、あなたに対する一対一の自然な会話として回答してください。"
+        "例えば、「どうしたの？もう少し詳しく教えて」などの返答を含む、"
+        "300～400文字程度の回答を生成してください。"
     )
     return truncate_text(call_gemini_api(prompt), 400)
 
@@ -100,9 +104,9 @@ def continue_combined_answer(additional_input: str, current_turns: str) -> str:
     prompt = (
         "これまでの会話の流れ:\n" + current_turns + "\n\n" +
         "ユーザーの追加発言: " + additional_input + "\n\n" +
-        "上記の流れを踏まえ、さらに自然な会話として、例えば「それでどうなったの？」など、"
-        "あなたに対する一対一の返答を生成してください。"
-        "回答は300～400文字程度で、自然な日本語で出力してください。"
+        "上記の流れを踏まえ、さらに自然な会話として、"
+        "例えば「それでどうなったの？」など、あなたに対する一対一の返答を生成してください。"
+        "回答は300～400文字程度で出力してください。"
     )
     return truncate_text(call_gemini_api(prompt), 400)
 
@@ -128,7 +132,7 @@ def display_chat_bubble(sender: str, message: str, align: str):
             margin-left: auto;
             max-width: 70%;
         ">
-            <strong>{sender}</strong>: {message}
+            <strong>{sender}</strong>: {message} 😊
         </div>
         """
     else:
@@ -144,7 +148,7 @@ def display_chat_bubble(sender: str, message: str, align: str):
             text-align: left;
             max-width: 70%;
         ">
-            <strong>{sender}</strong>: {message}
+            <strong>{sender}</strong>: {message} 👍
         </div>
         """
     st.markdown(bubble_html, unsafe_allow_html=True)
@@ -152,8 +156,13 @@ def display_chat_bubble(sender: str, message: str, align: str):
 def display_conversation_turns(turns: list):
     # 最新の会話ターンが上に来るように逆順で表示
     for turn in reversed(turns):
+        # ユーザー発言は右寄せ
         display_chat_bubble("あなた", turn["user"], "right")
-        display_chat_bubble("回答", turn["answer"], "left")
+        # 回答が長い場合は分割して複数バブルに表示
+        answer_chunks = split_message(turn["answer"], 400)
+        for i, chunk in enumerate(answer_chunks):
+            suffix = " 👉" if i < len(answer_chunks)-1 else ""
+            display_chat_bubble("回答", chunk + suffix, "left")
 
 # ------------------------
 # Streamlit アプリ本体
@@ -184,16 +193,13 @@ if submitted:
     if user_message.strip():
         if "conversation_turns" not in st.session_state or not isinstance(st.session_state["conversation_turns"], list):
             st.session_state["conversation_turns"] = []
-        # ユーザーの発言を取得
         user_text = user_message
-        # 統合回答の生成
         persona_params = adjust_parameters(user_message)
         if len(st.session_state["conversation_turns"]) == 0:
             answer_text = generate_combined_answer(user_message, persona_params)
         else:
             context = "\n".join([f"あなた: {turn['user']}\n回答: {turn['answer']}" for turn in st.session_state["conversation_turns"]])
             answer_text = continue_combined_answer(user_message, context)
-        # 新しい会話ターンとして追加
         st.session_state["conversation_turns"].append({"user": user_text, "answer": answer_text})
         conversation_container.markdown("### 会話履歴")
         display_conversation_turns(st.session_state["conversation_turns"])

@@ -6,7 +6,7 @@ from streamlit_chat import message  # pip install streamlit-chat
 # ------------------------
 # ページ設定（最初に実行）
 # ------------------------
-st.set_page_config(page_title="役場メンタルケア - チャット", layout="wide")
+st.set_page_config(page_title="職員メンタルケア - チャット", layout="wide")
 
 # ------------------------
 # ユーザー情報入力（画面上部）
@@ -134,7 +134,7 @@ def display_conversation_turns(turns: list):
 # ------------------------
 # Streamlit アプリ本体
 # ------------------------
-st.title("役場メンタルケア - チャットサポート")
+st.title("職員メンタルケア ")
 
 # --- 上部：会話履歴表示エリア ---
 st.header("会話履歴")

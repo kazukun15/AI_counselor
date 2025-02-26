@@ -1,18 +1,17 @@
 import streamlit as st
 import requests
 import re
+from streamlit_chat import message  # pip install streamlit-chat
 
 # ------------------------
 # ページ設定（最初に実行）
 # ------------------------
-st.set_page_config(page_title="職員ヘルスボット", layout="wide")
+st.set_page_config(page_title="役場メンタルケア - チャット", layout="wide")
 
 # ------------------------
 # ユーザー情報入力（画面上部）
 # ------------------------
-# 対象を愛媛県庁職員に変更
 user_name = st.text_input("あなたの名前を入力してください", value="愛媛県庁職員", key="user_name")
-# 「発達障害相談」を「デリケートな相談」に変更
 consult_type = st.radio("相談タイプを選択してください", ("本人の相談", "他者の相談", "デリケートな相談"), key="consult_type")
 
 # ------------------------
@@ -34,7 +33,7 @@ if "conversation_turns" not in st.session_state:
 def truncate_text(text, max_length=400):
     return text if len(text) <= max_length else text[:max_length] + "…"
 
-def split_message(message: str, chunk_size=400) -> list:
+def split_message(message: str, chunk_size=200) -> list:
     return [message[i:i+chunk_size] for i in range(0, len(message), chunk_size)]
 
 def remove_json_artifacts(text: str) -> str:
@@ -85,8 +84,7 @@ def generate_combined_answer(question: str, persona_params: dict) -> str:
     current_user = st.session_state.get("user_name", "ユーザー")
     consult_type = st.session_state.get("consult_type", "本人の相談")
     if consult_type == "デリケートな相談":
-        # デリケートな相談の場合のプロンプト
-        consult_info = ("この相談は大人の発達障害（例：ADHD、ASD、LDなど）を含む、デリケートな相談です。"
+        consult_info = ("この相談は大人の発達障害（例：ADHDなど）を含む、デリケートな相談です。"
                         "信頼できる公的機関や学術論文を参照し、正確な情報に基づいた回答をお願いします。")
     elif consult_type == "他者の相談":
         consult_info = "この相談は、他者が抱える障害に関するものです。専門的な視点から客観的な判断をお願いします。"
@@ -97,10 +95,8 @@ def generate_combined_answer(question: str, persona_params: dict) -> str:
     prompt += (
         "以下は、4人の専門家の意見を内部で統合した結果です。"
         "内部の議論内容は伏せ、あなたに対する一対一の自然な会話として、"
-        "たとえば「何か悩み事ですか？もう少し詳しく教えてください」といった返答を含む回答を生成してください。"
-        "回答は200～300文字程度で、自然な日本語で出力してください。"
-        "親しみやすい話し方を心がけてください。"
-        "妄言、ハルシネーションは絶対避けてください。"
+        "たとえば「どうしたの？もう少し詳しく教えて」といった返答を含む回答を生成してください。"
+        "回答は300～400文字程度で出力してください。"
     )
     return truncate_text(call_gemini_api(prompt), 400)
 
@@ -110,9 +106,7 @@ def continue_combined_answer(additional_input: str, current_turns: str) -> str:
         "ユーザーの追加発言: " + additional_input + "\n\n" +
         "上記の流れを踏まえ、さらに自然な会話として、"
         "たとえば「それでどうなったの？」といった返答を含む回答を生成してください。"
-        "回答は300～400文字程度で、自然な日本語で出力してください。"
-        "親しみやすい話し方を心がけてください。"
-        "妄言、ハルシネーションは絶対避けてください。"
+        "回答は300～400文字程度で出力してください。"
     )
     return truncate_text(call_gemini_api(prompt), 400)
 
@@ -124,56 +118,23 @@ def generate_summary(discussion: str) -> str:
     )
     return call_gemini_api(prompt)
 
-def display_chat_bubble(sender: str, message: str, align: str):
-    if align == "right":
-        bubble_html = f"""
-        <div style="
-            background-color: #DCF8C6;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            padding: 8px;
-            margin: 5px 0;
-            color: #000;
-            font-family: Arial, sans-serif;
-            text-align: right;
-            margin-left: auto;
-            max-width: 70%;
-        ">
-            <strong>{sender}</strong>: {message} 😊
-        </div>
-        """
-    else:
-        bubble_html = f"""
-        <div style="
-            background-color: #FFFACD;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            padding: 8px;
-            margin: 5px 0;
-            color: #000;
-            font-family: Arial, sans-serif;
-            text-align: left;
-            max-width: 70%;
-        ">
-            <strong>{sender}</strong>: {message} 👍
-        </div>
-        """
-    st.markdown(bubble_html, unsafe_allow_html=True)
-
+# ------------------------
+# Streamlit Chat 表示（streamlit-chat を利用）
+# ------------------------
 def display_conversation_turns(turns: list):
     # 最新の会話ターンが上に来るように逆順で表示
     for turn in reversed(turns):
-        display_chat_bubble("あなた", turn["user"], "right")
+        message(turn["user"], is_user=True)
+        # 回答が長い場合は分割して表示（途中は「👉」付き）
         answer_chunks = split_message(turn["answer"], 200)
         for i, chunk in enumerate(answer_chunks):
             suffix = " 👉" if i < len(answer_chunks) - 1 else ""
-            display_chat_bubble("回答", chunk + suffix, "left")
+            message(chunk + suffix, is_user=False)
 
 # ------------------------
 # Streamlit アプリ本体
 # ------------------------
-
-st.title("職員ヘルスボット")
+st.title("役場メンタルケア - チャットサポート")
 
 # --- 上部：会話履歴表示エリア ---
 st.header("会話履歴")
@@ -182,7 +143,8 @@ conversation_container = st.empty()
 # --- 上部：まとめ回答ボタン ---
 if st.button("会話をまとめる"):
     if st.session_state.get("conversation_turns", []):
-        summary = generate_summary("\n".join([f"あなた: {turn['user']}\n回答: {turn['answer']}" for turn in st.session_state["conversation_turns"]]))
+        all_turns = "\n".join([f"あなた: {turn['user']}\n回答: {turn['answer']}" for turn in st.session_state["conversation_turns"]])
+        summary = generate_summary(all_turns)
         st.session_state["summary"] = summary
         st.markdown("### まとめ回答\n" + "**まとめ:**\n" + summary)
     else:

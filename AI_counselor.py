@@ -11,6 +11,22 @@ st.set_page_config(page_title="ぼくのともだち", layout="wide")
 st.title("ぼくのともだち V2.2.1")
 
 # ------------------------
+# 背景画像の設定（インラインCSS）
+# ------------------------
+st.markdown(
+    """
+    <style>
+    body {
+        background-image: url("https://your-image-url.com/background.png");
+        background-size: cover;
+        background-attachment: fixed;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# ------------------------
 # ユーザーの名前入力（上部）
 # ------------------------
 user_name = st.text_input("あなたの名前を入力してください", value="ユーザー", key="user_name")
@@ -138,7 +154,7 @@ def display_chat_log(chat_log: list):
     会話履歴エリアに表示します。会話は古いものが上、最新が下に表示され、
     最新の発言が入力バーの直上に表示されます。
     """
-    # アバター画像のローカルパスまたはURLを設定（例として画像URLを使用）
+    # GitHubリポジトリ内の avatars フォルダ内の画像を参照（パスは相対パス）
     avatar_map = {
         "ユーザー": "avatars/user.png",
         "ゆかり": "avatars/yukari.png",
@@ -146,7 +162,6 @@ def display_chat_log(chat_log: list):
         "みのる": "avatars/minoru.png",
         "新キャラクター": "avatars/new_character.png"
     }
-    # キャラクターごとのスタイル
     style_map = {
         "ユーザー": {"bg": "#E0FFFF", "align": "right"},
         "ゆかり": {"bg": "#FFB6C1", "align": "left"},

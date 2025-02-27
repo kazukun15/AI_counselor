@@ -1,10 +1,11 @@
 import streamlit as st
 import requests
 import re
+import time
 from streamlit_chat import message  # pip install streamlit-chat
 
 # ------------------------
-# ページ設定（最初に実行）
+# ページ設定（最初に実行） – すべてのstコマンドより先に配置すること！
 # ------------------------
 st.set_page_config(page_title="メンタルケアボット", layout="wide")
 
@@ -52,7 +53,7 @@ MODEL_NAME = "gemini-2.0-flash-001"  # 必要に応じて変更
 ROLES = ["精神科医師", "カウンセラー", "メンタリスト", "内科医"]
 
 # ------------------------
-# セッションステート初期化（会話ターン単位で管理）
+# セッションステート初期化（会話ターン管理）
 # ------------------------
 if "conversation_turns" not in st.session_state:
     st.session_state["conversation_turns"] = []
@@ -99,8 +100,6 @@ if st.session_state.get("show_selection_form", False):
         )
         if treatment_history == "はい":
             selection_summary += f"現在の通院状況: {ongoing_treatment}\n"
-        if "conversation_turns" not in st.session_state or not isinstance(st.session_state["conversation_turns"], list):
-            st.session_state["conversation_turns"] = []
         st.session_state["conversation_turns"].append({
             "user": selection_summary, 
             "answer": "選択式相談フォームの内容が送信され、反映されました。"
@@ -261,20 +260,84 @@ def display_conversation_turns(turns: list):
             display_chat_bubble("回答", chunk + suffix, "left")
 
 # ------------------------
+# タイプライター風表示用：新たな回答をアニメーション表示
+# ------------------------
+def create_bubble(sender: str, message: str, align: str) -> str:
+    if align == "right":
+        return f"""
+        <div style="
+            background-color: #DCF8C6;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 8px;
+            margin: 5px 0;
+            color: #000;
+            font-family: Arial, sans-serif;
+            text-align: right;
+            width: 50%;
+            float: right;
+            clear: both;
+        ">
+            <strong>{sender}</strong>: {message} 😊
+        </div>
+        """
+    else:
+        return f"""
+        <div style="
+            background-color: #FFFACD;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 8px;
+            margin: 5px 0;
+            color: #000;
+            font-family: Arial, sans-serif;
+            text-align: left;
+            width: 50%;
+            float: left;
+            clear: both;
+        ">
+            <strong>{sender}</strong>: {message} 👍
+        </div>
+        """
+
+def typewriter_bubble(sender: str, full_text: str, align: str, delay: float = 0.05):
+    container = st.empty()
+    displayed_text = ""
+    for char in full_text:
+        displayed_text += char
+        container.markdown(create_bubble(sender, displayed_text, align), unsafe_allow_html=True)
+        time.sleep(delay)
+    container.markdown(create_bubble(sender, full_text, align), unsafe_allow_html=True)
+
+# ------------------------
 # Streamlit アプリ本体
 # ------------------------
 st.title("メンタルケアボット")
 st.header("会話履歴")
 conversation_container = st.empty()
 
+# 改善策のレポートボタン
 if st.button("改善策のレポート"):
     if st.session_state.get("conversation_turns", []):
-        all_turns = "\n".join([f"あなた: {turn['user']}\n回答: {turn['answer']}" for turn in st.session_state["conversation_turns"]])
+        all_turns = "\n".join([f"あなた: {turn['user']}\n回答: {turn['answer']}" 
+                                for turn in st.session_state["conversation_turns"]])
         summary = generate_summary(all_turns)
         st.session_state["summary"] = summary
         st.markdown("### 改善策のレポート\n" + "**まとめ:**\n" + summary)
     else:
         st.warning("まずは会話を開始してください。")
+
+# 続きボタン
+if st.button("続きを読み込む"):
+    if st.session_state.get("conversation_turns", []):
+        context = "\n".join([f"あなた: {turn['user']}\n回答: {turn['answer']}" 
+                             for turn in st.session_state["conversation_turns"]])
+        new_answer = continue_combined_answer("続きをお願いします。", context)
+        st.session_state["conversation_turns"].append({"user": "続き", "answer": new_answer})
+        conversation_container.markdown("### 会話履歴")
+        display_conversation_turns(st.session_state["conversation_turns"])
+    else:
+        st.warning("会話がありません。")
 
 st.header("メッセージ入力")
 with st.form("chat_form", clear_on_submit=True):
@@ -290,10 +353,16 @@ if submitted:
         if len(st.session_state["conversation_turns"]) == 0:
             answer_text = generate_combined_answer(user_message, persona_params)
         else:
-            context = "\n".join([f"あなた: {turn['user']}\n回答: {turn['answer']}" for turn in st.session_state["conversation_turns"]])
+            context = "\n".join([f"あなた: {turn['user']}\n回答: {turn['answer']}" 
+                                 for turn in st.session_state["conversation_turns"]])
             answer_text = continue_combined_answer(user_message, context)
         st.session_state["conversation_turns"].append({"user": user_text, "answer": answer_text})
         conversation_container.markdown("### 会話履歴")
-        display_conversation_turns(st.session_state["conversation_turns"])
+        # 既存の会話は通常表示
+        if len(st.session_state["conversation_turns"]) > 1:
+            display_conversation_turns(st.session_state["conversation_turns"][:-1])
+        # 最新の回答はタイプライター風に表示
+        display_chat_bubble("あなた", user_text, "right")
+        typewriter_bubble("回答", answer_text, "left")
     else:
         st.warning("発言を入力してください。")

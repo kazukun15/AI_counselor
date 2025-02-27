@@ -11,15 +11,13 @@ st.set_page_config(page_title="ぼくのともだち", layout="wide")
 st.title("ぼくのともだち V2.2.1")
 
 # ------------------------
-# 背景画像の設定（インラインCSS）
+# 背景画像の設定（オプション）
 # ------------------------
 st.markdown(
     """
     <style>
     body {
-        background-image: url("https://your-image-url.com/background.png");
-        background-size: cover;
-        background-attachment: fixed;
+        background-color: #f0f2f6;
     }
     </style>
     """,
@@ -27,7 +25,7 @@ st.markdown(
 )
 
 # ------------------------
-# ユーザーの名前入力（上部）
+# ユーザーの名前入力
 # ------------------------
 user_name = st.text_input("あなたの名前を入力してください", value="ユーザー", key="user_name")
 
@@ -35,7 +33,7 @@ user_name = st.text_input("あなたの名前を入力してください", value
 # 定数／設定
 # ------------------------
 API_KEY = st.secrets["general"]["api_key"]
-MODEL_NAME = "gemini-2.0-flash-001"  # 必要に応じて変更
+MODEL_NAME = "gemini-2.0-flash-001"
 NAMES = ["ゆかり", "しんや", "みのる"]
 
 # ------------------------
@@ -133,14 +131,14 @@ def continue_discussion(additional_input: str, current_discussion: str) -> str:
 def generate_summary(discussion: str) -> str:
     prompt = (
         "以下は3人の会話内容です。\n" + discussion + "\n\n" +
-        "この会話を踏まえて、質問に対するまとめ回答を生成してください。\n"
+        "この会話を踏まえ、質問に対するまとめ回答を生成してください。\n"
         "自然な日本語文で出力し、余計なJSON形式は不要です。"
     )
     return call_gemini_api(prompt)
 
 def generate_new_character() -> tuple:
     candidates = [
-        ("たけし", "冷静沈着で皮肉屋、どこか孤高な存在"),
+        ("たけし", "冷静沈着で、どこか孤高な存在"),
         ("さとる", "率直かつ辛辣で、常に現実を鋭く指摘する"),
         ("りさ", "自由奔放で斬新なアイデアを持つ、ユニークな感性の持ち主"),
         ("けんじ", "クールで合理的、論理に基づいた意見を率直に述べる"),
@@ -154,7 +152,7 @@ def display_chat_log(chat_log: list):
     会話履歴エリアに表示します。会話は古いものが上、最新が下に表示され、
     最新の発言が入力バーの直上に表示されます。
     """
-    # GitHubリポジトリ内の avatars フォルダ内の画像を参照（パスは相対パス）
+    # GitHubリポジトリ内の avatars フォルダ内の画像を参照
     avatar_map = {
         "ユーザー": "avatars/user.png",
         "ゆかり": "avatars/yukari.png",

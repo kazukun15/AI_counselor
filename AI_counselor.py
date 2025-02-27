@@ -154,11 +154,11 @@ def display_chat_log(chat_log: list):
     """
     # GitHubリポジトリ内の avatars フォルダ内の画像を参照
     avatar_map = {
-        "ユーザー": "avatars/user.png",
-        "ゆかり": "avatars/yukari.png",
-        "しんや": "avatars/shinya.png",
-        "みのる": "avatars/minoru.png",
-        "新キャラクター": "avatars/new_character.png"
+       "ユーザー": "AI_counselor/avatars/user.png",
+    "ゆかり": "AI_counselor/avatars/yukari.png",
+    "しんや": "AI_counselor/avatars/shinya.png",
+    "みのる": "AI_counselor/avatars/minoru.png",
+    "新キャラクター": "AI_counselor/avatars/new_character.png"
     }
     style_map = {
         "ユーザー": {"bg": "#E0FFFF", "align": "right"},

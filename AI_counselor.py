@@ -1,7 +1,12 @@
 import streamlit as st
 import requests
 import re
+import time
+import random
+import base64
+from io import BytesIO
 from streamlit_chat import message  # pip install streamlit-chat
+from PIL import Image
 
 # ------------------------
 # ページ設定（最初に実行）
@@ -28,12 +33,12 @@ st.markdown(
 )
 
 # ------------------------
-# タイトル表示（ユーザー情報入力の上部に表示）
+# タイトル表示
 # ------------------------
 st.title("メンタルケアボット")
 
 # ------------------------
-# ユーザー情報入力（画面上部）
+# ユーザー情報入力（上部）
 # ------------------------
 user_name = st.text_input("あなたの名前を入力してください", value="愛媛県庁職員", key="user_name")
 col1, col2 = st.columns([3, 1])
@@ -52,7 +57,7 @@ MODEL_NAME = "gemini-2.0-flash-001"  # 必要に応じて変更
 ROLES = ["精神科医師", "カウンセラー", "メンタリスト", "内科医"]
 
 # ------------------------
-# セッションステート初期化（会話ターン単位で管理）
+# セッションステート初期化（会話管理）
 # ------------------------
 if "conversation_turns" not in st.session_state:
     st.session_state["conversation_turns"] = []
@@ -60,7 +65,37 @@ if "show_selection_form" not in st.session_state:
     st.session_state["show_selection_form"] = False
 
 # ------------------------
-# 選択式相談フォーム（サイドバー）
+# アバター画像の読み込み（画像は ./avatars/ に配置）
+# ------------------------
+try:
+    img_psychiatrist = Image.open("./avatars/Psychiatrist.png")
+    img_counselor = Image.open("./avatars/counselor.png")
+    img_mentalist = Image.open("./avatars/MENTALIST.png")
+    img_doctor = Image.open("./avatars/doctor.png")
+except Exception as e:
+    st.error(f"画像読み込みエラー: {e}")
+    img_psychiatrist = "🧠"
+    img_counselor = "👥"
+    img_mentalist = "💡"
+    img_doctor = "💊"
+
+avatar_dict = {
+    "ユーザー": "👤",  # ユーザー用（画像がある場合は差し替え可）
+    "精神科医師": img_psychiatrist,
+    "カウンセラー": img_counselor,
+    "メンタリスト": img_mentalist,
+    "内科医": img_doctor
+}
+
+def get_image_base64(image):
+    if isinstance(image, str):
+        return image  # 絵文字の場合
+    buffered = BytesIO()
+    image.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode()
+
+# ------------------------
+# 選択式相談フォーム（サイドバーに収納）
 # ------------------------
 if st.session_state.get("show_selection_form", False):
     st.sidebar.header("選択式相談フォーム")
@@ -99,8 +134,6 @@ if st.session_state.get("show_selection_form", False):
         )
         if treatment_history == "はい":
             selection_summary += f"現在の通院状況: {ongoing_treatment}\n"
-        if "conversation_turns" not in st.session_state or not isinstance(st.session_state["conversation_turns"], list):
-            st.session_state["conversation_turns"] = []
         st.session_state["conversation_turns"].append({
             "user": selection_summary, 
             "answer": "選択式相談フォームの内容が送信され、反映されました。"
@@ -135,8 +168,7 @@ def remove_json_artifacts(text: str) -> str:
     if not isinstance(text, str):
         text = str(text) if text else ""
     pattern = r"'parts': \[\{'text':.*?\}\], 'role': 'model'"
-    cleaned = re.sub(pattern, "", text, flags=re.DOTALL)
-    return cleaned.strip()
+    return re.sub(pattern, "", text, flags=re.DOTALL).strip()
 
 def call_gemini_api(prompt: str) -> str:
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent?key={API_KEY}"
@@ -167,55 +199,89 @@ def call_gemini_api(prompt: str) -> str:
     except Exception as e:
         return f"エラー: レスポンス解析に失敗しました -> {str(e)}"
 
-def adjust_parameters(question: str) -> dict:
-    params = {}
-    params["精神科医師"] = {"style": "専門的", "detail": "精神科のナレッジを基に的確な判断を下す"}
-    params["カウンセラー"] = {"style": "共感的", "detail": "寄り添いながら優しくサポートする"}
-    params["メンタリスト"] = {"style": "洞察力に富んだ", "detail": "多角的な心理学的視点から分析する"}
-    params["内科医"] = {"style": "実直な", "detail": "身体面の不調や他の病気を慎重にチェックする"}
-    return params
+def analyze_question(question: str) -> int:
+    score = 0
+    keywords_emotional = ["困った", "悩み", "苦しい", "辛い"]
+    keywords_logical = ["理由", "原因", "仕組み", "方法"]
+    for word in keywords_emotional:
+        if re.search(word, question):
+            score += 1
+    for word in keywords_logical:
+        if re.search(word, question):
+            score -= 1
+    return score
 
-def generate_combined_answer(question: str, persona_params: dict) -> str:
+def adjust_parameters(question: str) -> dict:
+    # 今回は専門家は固定回答のため、ロジックは省略
+    return {}
+
+def generate_expert_answers(question: str) -> str:
     current_user = st.session_state.get("user_name", "ユーザー")
     consult_type = st.session_state.get("consult_type", "本人の相談")
     if consult_type == "デリケートな相談":
         consult_info = ("この相談は大人の発達障害（例：ADHDなど）を含む、デリケートな相談です。"
-                        "信頼できる公的機関や学術論文を参照し、正確な情報に基づいた回答をお願いします。")
+                        "公的機関や学術論文を参照し、正確な情報に基づいた回答をお願いします。")
     elif consult_type == "他者の相談":
-        consult_info = "この相談は、他者が抱える障害に関するものです。専門的な視点から客観的な判断をお願いします。"
+        consult_info = "この相談は、他者が抱える障害に関するものです。専門的かつ客観的な視点をお願いします。"
     else:
         consult_info = "この相談は本人が抱える悩みに関するものです。"
         
     prompt = f"【{current_user}さんの質問】\n{question}\n\n{consult_info}\n"
     prompt += (
-        "以下は、4人の専門家の意見を内部で統合した結果です。"
-        "内部の議論内容は伏せ、あなたに対する一対一の自然な会話として、"
-        "たとえば「どうしたの？もう少し詳しく教えて」といった返答を含む回答を生成してください。"
-        "回答は300～400文字程度で、自然な日本語で出力してください。"
+        "以下は、4人の専門家からの個別回答です。必ず以下の形式で出力してください:\n"
+        "精神科医師: <回答>\n"
+        "カウンセラー: <回答>\n"
+        "メンタリスト: <回答>\n"
+        "内科医: <回答>\n"
+        "各回答は300～400文字程度で、自然な日本語で出力してください。"
     )
     return truncate_text(call_gemini_api(prompt), 400)
 
-def continue_combined_answer(additional_input: str, current_turns: str) -> str:
+def continue_expert_answers(additional_input: str, current_turns: str) -> str:
     prompt = (
-        "これまでの会話の流れ:\n" + current_turns + "\n\n" +
+        "これまでの会話:\n" + current_turns + "\n\n" +
         "ユーザーの追加発言: " + additional_input + "\n\n" +
-        "上記の流れを踏まえ、さらに自然な会話として、"
-        "専門家としての見解を踏まえた回答を生成してください。"
-        "回答は300～400文字程度で、自然な日本語で出力してください。"
+        "上記を踏まえ、4人の専門家として回答を更新してください。必ず以下の形式で出力:\n"
+        "精神科医師: <回答>\n"
+        "カウンセラー: <回答>\n"
+        "メンタリスト: <回答>\n"
+        "内科医: <回答>\n"
+        "各回答は300～400文字程度で、自然な日本語で出力してください。"
     )
     return truncate_text(call_gemini_api(prompt), 400)
 
 def generate_summary(discussion: str) -> str:
     prompt = (
-        "以下は4人の統合された会話内容です:\n" + discussion + "\n\n" +
+        "以下は4人の専門家からの回答を含む会話内容です:\n" + discussion + "\n\n" +
         "この内容を踏まえて、愛媛県庁職員向けのメンタルヘルスケアに関するまとめレポートを、"
         "分かりやすいマークダウン形式で生成してください。"
     )
     return call_gemini_api(prompt)
 
-def display_chat_bubble(sender: str, message: str, align: str):
+# ------------------------
+# Streamlit Chat を使って会話を表示する関数
+# ------------------------
+def display_chat():
+    # 会話ターンをチャット形式で表示（順番は古い順）
+    for turn in st.session_state["conversation_turns"]:
+        message(turn["user"], is_user=True)
+        message(turn["answer"], is_user=False)
+
+# ------------------------
+# タイプライター風表示用関数
+# ------------------------
+def create_bubble(sender: str, message: str, align: str) -> str:
+    avatar_html = ""
+    display_sender = sender if sender != "あなた" else "ユーザー"
+    if display_sender in avatar_dict:
+        avatar = avatar_dict[display_sender]
+        if isinstance(avatar, str):
+            avatar_html = f"<span style='font-size: 24px;'>{avatar}</span> "
+        else:
+            img_str = get_image_base64(avatar)
+            avatar_html = f"<img src='data:image/png;base64,{img_str}' style='width:30px; height:30px; margin-right:5px;'>"
     if align == "right":
-        bubble_html = f"""
+        return f"""
         <div style="
             background-color: #DCF8C6;
             border: 1px solid #ddd;
@@ -229,11 +295,11 @@ def display_chat_bubble(sender: str, message: str, align: str):
             float: right;
             clear: both;
         ">
-            <strong>{sender}</strong>: {message} 😊
+            {avatar_html}<strong>{display_sender}</strong>: {message} 😊
         </div>
         """
     else:
-        bubble_html = f"""
+        return f"""
         <div style="
             background-color: #FFFACD;
             border: 1px solid #ddd;
@@ -247,18 +313,18 @@ def display_chat_bubble(sender: str, message: str, align: str):
             float: left;
             clear: both;
         ">
-            <strong>{sender}</strong>: {message} 👍
+            {avatar_html}<strong>{display_sender}</strong>: {message} 👍
         </div>
         """
-    st.markdown(bubble_html, unsafe_allow_html=True)
 
-def display_conversation_turns(turns: list):
-    for turn in reversed(turns):
-        display_chat_bubble("あなた", turn["user"], "right")
-        answer_chunks = split_message(turn["answer"], 200)
-        for i, chunk in enumerate(answer_chunks):
-            suffix = " 👉" if i < len(answer_chunks) - 1 else ""
-            display_chat_bubble("回答", chunk + suffix, "left")
+def typewriter_bubble(sender: str, full_text: str, align: str, delay: float = 0.05):
+    container = st.empty()
+    displayed_text = ""
+    for char in full_text:
+        displayed_text += char
+        container.markdown(create_bubble(sender, displayed_text, align), unsafe_allow_html=True)
+        time.sleep(delay)
+    container.markdown(create_bubble(sender, full_text, align), unsafe_allow_html=True)
 
 # ------------------------
 # Streamlit アプリ本体
@@ -267,33 +333,82 @@ st.title("メンタルケアボット")
 st.header("会話履歴")
 conversation_container = st.empty()
 
+# 改善策のレポートボタン
 if st.button("改善策のレポート"):
     if st.session_state.get("conversation_turns", []):
-        all_turns = "\n".join([f"あなた: {turn['user']}\n回答: {turn['answer']}" for turn in st.session_state["conversation_turns"]])
+        all_turns = "\n".join([
+            f"あなた: {turn['user']}\n回答: {turn['answer']}"
+            for turn in st.session_state["conversation_turns"]
+        ])
         summary = generate_summary(all_turns)
         st.session_state["summary"] = summary
         st.markdown("### 改善策のレポート\n" + "**まとめ:**\n" + summary)
     else:
         st.warning("まずは会話を開始してください。")
 
-st.header("メッセージ入力")
-with st.form("chat_form", clear_on_submit=True):
-    user_message = st.text_area("新たな発言を入力してください", placeholder="ここに入力", height=100, key="user_message")
-    submitted = st.form_submit_button("送信")
-
-if submitted:
-    if user_message.strip():
-        if "conversation_turns" not in st.session_state or not isinstance(st.session_state["conversation_turns"], list):
-            st.session_state["conversation_turns"] = []
-        user_text = user_message
-        persona_params = adjust_parameters(user_message)
-        if len(st.session_state["conversation_turns"]) == 0:
-            answer_text = generate_combined_answer(user_message, persona_params)
-        else:
-            context = "\n".join([f"あなた: {turn['user']}\n回答: {turn['answer']}" for turn in st.session_state["conversation_turns"]])
-            answer_text = continue_combined_answer(user_message, context)
-        st.session_state["conversation_turns"].append({"user": user_text, "answer": answer_text})
+# 続きボタン
+if st.button("続きを読み込む"):
+    if st.session_state.get("conversation_turns", []):
+        context = "\n".join([
+            f"あなた: {turn['user']}\n回答: {turn['answer']}"
+            for turn in st.session_state["conversation_turns"]
+        ])
+        new_answer = continue_expert_answers("続きをお願いします。", context)
+        st.session_state["conversation_turns"].append({"user": "続き", "answer": new_answer})
         conversation_container.markdown("### 会話履歴")
-        display_conversation_turns(st.session_state["conversation_turns"])
+        display_chat()  # st.session_state["conversation_turns"] を表示
     else:
-        st.warning("発言を入力してください。")
+        st.warning("会話がありません。")
+
+# メッセージ入力エリア（下部固定）
+with st.container():
+    st.markdown(
+        '<div style="position: fixed; bottom: 0; width: 100%; background: #FFF; padding: 10px; box-shadow: 0 -2px 5px rgba(0,0,0,0.1);">',
+        unsafe_allow_html=True,
+    )
+    with st.form("chat_form", clear_on_submit=True):
+        user_message = st.text_area("新たな発言を入力してください", placeholder="ここに入力", height=100, key="user_message")
+        col1, col2 = st.columns(2)
+        with col1:
+            send_button = st.form_submit_button("送信")
+        with col2:
+            continue_button = st.form_submit_button("続きを話す")
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    # 送信ボタン処理
+    if send_button:
+        if user_message.strip():
+            if "conversation_turns" not in st.session_state:
+                st.session_state["conversation_turns"] = []
+            user_text = user_message
+            # 初回: 4人の専門家が個別回答、以降は続きとして回答
+            if len(st.session_state["conversation_turns"]) == 0:
+                answer_text = generate_expert_answers(user_text)
+            else:
+                context = "\n".join([
+                    f"あなた: {turn['user']}\n回答: {turn['answer']}"
+                    for turn in st.session_state["conversation_turns"]
+                ])
+                answer_text = continue_expert_answers(user_text, context)
+            st.session_state["conversation_turns"].append({"user": user_text, "answer": answer_text})
+            conversation_container.markdown("### 会話履歴")
+            display_chat()  # st.session_state["conversation_turns"] を表示
+            # 最新の回答をタイプライター風に表示
+            message(user_text, is_user=True)
+            typewriter_bubble("回答", answer_text, "left")
+        else:
+            st.warning("発言を入力してください。")
+    
+    # 続きボタン処理（固定フッター内）
+    if continue_button:
+        if st.session_state.get("conversation_turns", []):
+            context = "\n".join([
+                f"あなた: {turn['user']}\n回答: {turn['answer']}"
+                for turn in st.session_state["conversation_turns"]
+            ])
+            new_discussion = continue_expert_answers("続きをお願いします。", context)
+            st.session_state["conversation_turns"].append({"user": "続き", "answer": new_discussion})
+            conversation_container.markdown("### 会話履歴")
+            display_chat()
+        else:
+            st.warning("まずは会話を開始してください。")
